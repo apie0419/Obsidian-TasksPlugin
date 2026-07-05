@@ -1,0 +1,10 @@
+{
+  "id": "frontmatter-kanban-board",
+  "name": "Frontmatter Kanban Board",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "A Kanban board for Markdown task notes with Obsidian-readable frontmatter.",
+  "author": "Codex",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}
