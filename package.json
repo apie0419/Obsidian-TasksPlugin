@@ -1,0 +1,15 @@
+{
+  "name": "frontmatter-kanban-board",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An Obsidian plugin that creates a Kanban board from Markdown task notes.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs --watch",
+    "build": "node esbuild.config.mjs --production"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "obsidian": "latest"
+  }
+}

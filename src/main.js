@@ -1,5 +1,4 @@
-// src/main.js
-var {
+const {
   ButtonComponent,
   DropdownComponent,
   ItemView,
@@ -14,17 +13,20 @@ var {
   normalizePath,
   stringifyYaml
 } = require("obsidian");
-var VIEW_TYPE_KANBAN = "frontmatter-kanban-board-view";
-var DONE_STATUS = "done";
-var BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
-var PRIORITIES = ["high", "medium", "easy", "low"];
-var PRIORITY_WEIGHTS = {
+
+const VIEW_TYPE_KANBAN = "frontmatter-kanban-board-view";
+const DONE_STATUS = "done";
+
+const BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
+const PRIORITIES = ["high", "medium", "easy", "low"];
+const PRIORITY_WEIGHTS = {
   high: 3,
   medium: 2,
   easy: 1,
   low: 1
 };
-var DEFAULT_SETTINGS = {
+
+const DEFAULT_SETTINGS = {
   taskFolder: "Tasks",
   statuses: [...BUILT_IN_STATUSES],
   createFormFields: {
@@ -36,7 +38,8 @@ var DEFAULT_SETTINGS = {
   },
   customFields: []
 };
-var FIELD_TYPES = [
+
+const FIELD_TYPES = [
   "text",
   "number",
   "date",
@@ -45,30 +48,44 @@ var FIELD_TYPES = [
   "select",
   "checkbox"
 ];
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
 function nowIso() {
-  return (/* @__PURE__ */ new Date()).toISOString();
+  return new Date().toISOString();
 }
+
 function toDate(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date;
 }
+
 function sanitizeFileName(title) {
-  return title.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
+  return title
+    .replace(/[\\/:*?"<>|#^[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
+
 function normalizeFieldId(value) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
+
 function formatDateTimeForInput(value) {
   const date = toDate(value);
   if (!date) return "";
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 6e4);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
 }
+
 function formatDateForInput(value) {
   if (!value) return "";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -76,15 +93,18 @@ function formatDateForInput(value) {
   if (!date) return "";
   return date.toISOString().slice(0, 10);
 }
+
 function readDateInputAsIso(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString();
 }
+
 function getTaskTitle(task) {
   return task.frontmatter.title || task.file.basename;
 }
+
 function getWorkOnText(frontmatter) {
   const start = frontmatter.work_start || "";
   const end = frontmatter.work_end || "";
@@ -92,32 +112,35 @@ function getWorkOnText(frontmatter) {
   if (start && end) return `${start} - ${end}`;
   return start || end;
 }
+
 function getPriorityWeight(priority) {
   return PRIORITY_WEIGHTS[String(priority || "").toLowerCase()] || 0;
 }
+
 function getNotificationLeadMs(frontmatter) {
   const rawAmount = frontmatter.notification_amount;
-  if (rawAmount === void 0 || rawAmount === null || rawAmount === "") return null;
+  if (rawAmount === undefined || rawAmount === null || rawAmount === "") return null;
   const amount = Number(frontmatter.notification_amount);
   const unit = frontmatter.notification_unit;
   if (!Number.isFinite(amount) || amount < 0 || !unit) return null;
-  if (unit === "minutes") return amount * 60 * 1e3;
-  if (unit === "hours") return amount * 60 * 60 * 1e3;
-  if (unit === "days") return amount * 24 * 60 * 60 * 1e3;
+  if (unit === "minutes") return amount * 60 * 1000;
+  if (unit === "hours") return amount * 60 * 60 * 1000;
+  if (unit === "days") return amount * 24 * 60 * 60 * 1000;
   return null;
 }
+
 function getDueClass(task) {
   if (task.frontmatter.status === DONE_STATUS) return "";
   const due = toDate(task.frontmatter.due);
   if (!due) return "";
   const diffMs = due.getTime() - Date.now();
-  const diffDays = diffMs / (24 * 60 * 60 * 1e3);
+  const diffDays = diffMs / (24 * 60 * 60 * 1000);
   if (diffDays <= 3) return "is-due-red";
   if (diffDays <= 7) return "is-due-yellow";
   return "";
 }
+
 function getFieldValue(task, fieldId) {
-  var _a, _b;
   const fm = task.frontmatter;
   if (fieldId === "title") return getTaskTitle(task);
   if (fieldId === "status") return fm.status || "";
@@ -130,10 +153,12 @@ function getFieldValue(task, fieldId) {
     end: fm.work_end || ""
   };
   if (fieldId === "notification") return {
-    amount: (_a = fm.notification_amount) != null ? _a : "",
-    unit: (_b = fm.notification_unit) != null ? _b : ""
+    amount: fm.notification_amount ?? "",
+    unit: fm.notification_unit ?? ""
   };
-  const customField = task.pluginSettings && task.pluginSettings.customFields ? task.pluginSettings.customFields.find((field) => field.id === fieldId) : null;
+  const customField = task.pluginSettings && task.pluginSettings.customFields
+    ? task.pluginSettings.customFields.find((field) => field.id === fieldId)
+    : null;
   if (customField && customField.type === "date-range") {
     return {
       start: fm[`${fieldId}_start`] || "",
@@ -142,6 +167,7 @@ function getFieldValue(task, fieldId) {
   }
   return fm[fieldId];
 }
+
 function getFieldType(plugin, fieldId) {
   if (fieldId === "title") return "text";
   if (fieldId === "status") return "select";
@@ -154,6 +180,7 @@ function getFieldType(plugin, fieldId) {
   const custom = plugin.settings.customFields.find((field) => field.id === fieldId);
   return custom ? custom.type : "text";
 }
+
 function compareValues(type, a, b) {
   if (type === "priority") {
     return getPriorityWeight(a) - getPriorityWeight(b);
@@ -181,6 +208,7 @@ function compareValues(type, a, b) {
   }
   return String(a || "").localeCompare(String(b || ""));
 }
+
 function notificationValueToMs(value) {
   if (!value || !value.amount || !value.unit) return 0;
   return getNotificationLeadMs({
@@ -188,6 +216,7 @@ function notificationValueToMs(value) {
     notification_unit: value.unit
   }) || 0;
 }
+
 function getBuiltInFields() {
   return [
     { id: "title", name: "Title", type: "text" },
@@ -200,9 +229,11 @@ function getBuiltInFields() {
     { id: "notification", name: "Notification", type: "notification" }
   ];
 }
+
 function getAllFieldDefinitions(plugin) {
   return [...getBuiltInFields(), ...plugin.settings.customFields];
 }
+
 function getOperatorsForType(type) {
   if (type === "number") {
     return [
@@ -260,50 +291,57 @@ function getOperatorsForType(type) {
     ["not_empty", "is not empty"]
   ];
 }
+
 function isEmptyValue(value, type) {
   if (type === "date-range") {
-    return !value || !value.start && !value.end;
+    return !value || (!value.start && !value.end);
   }
   if (type === "notification") {
-    return !value || !value.amount && !value.unit;
+    return !value || (!value.amount && !value.unit);
   }
-  return value === void 0 || value === null || value === "";
+  return value === undefined || value === null || value === "";
 }
+
 function dateOnly(value) {
   const date = toDate(value);
   if (!date) return "";
   return date.toISOString().slice(0, 10);
 }
+
 function matchesFilter(task, filter, plugin) {
   const type = getFieldType(plugin, filter.field);
   const value = getFieldValue(task, filter.field);
+
   if (filter.operator === "is_empty") return isEmptyValue(value, type);
   if (filter.operator === "not_empty") return !isEmptyValue(value, type);
+
   if (type === "number") {
-    const left2 = Number(value);
-    const right2 = Number(filter.value);
-    if (!Number.isFinite(left2) || !Number.isFinite(right2)) return false;
-    if (filter.operator === "equals") return left2 === right2;
-    if (filter.operator === "not_equals") return left2 !== right2;
-    if (filter.operator === "greater_than") return left2 > right2;
-    if (filter.operator === "less_than") return left2 < right2;
+    const left = Number(value);
+    const right = Number(filter.value);
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
+    if (filter.operator === "equals") return left === right;
+    if (filter.operator === "not_equals") return left !== right;
+    if (filter.operator === "greater_than") return left > right;
+    if (filter.operator === "less_than") return left < right;
     return false;
   }
+
   if (type === "date" || type === "datetime") {
-    const left2 = toDate(value);
-    const right2 = toDate(filter.value);
-    if (!left2 || !right2) return false;
-    if (filter.operator === "on") return dateOnly(left2) === dateOnly(right2);
-    if (filter.operator === "before") return left2.getTime() < right2.getTime();
-    if (filter.operator === "after") return left2.getTime() > right2.getTime();
+    const left = toDate(value);
+    const right = toDate(filter.value);
+    if (!left || !right) return false;
+    if (filter.operator === "on") return dateOnly(left) === dateOnly(right);
+    if (filter.operator === "before") return left.getTime() < right.getTime();
+    if (filter.operator === "after") return left.getTime() > right.getTime();
     return false;
   }
+
   if (type === "date-range") {
     const start = toDate(value && value.start);
     const end = toDate(value && value.end);
     if (filter.operator === "contains_date") {
       const target = toDate(filter.value);
-      if (!target || !start && !end) return false;
+      if (!target || (!start && !end)) return false;
       const targetTime = target.getTime();
       const startTime = start ? start.getTime() : Number.NEGATIVE_INFINITY;
       const endTime = end ? end.getTime() : Number.POSITIVE_INFINITY;
@@ -312,7 +350,7 @@ function matchesFilter(task, filter, plugin) {
     if (filter.operator === "overlaps") {
       const filterStart = toDate(filter.valueStart);
       const filterEnd = toDate(filter.valueEnd);
-      if (!start && !end || !filterStart && !filterEnd) return false;
+      if ((!start && !end) || (!filterStart && !filterEnd)) return false;
       const leftStart = start ? start.getTime() : Number.NEGATIVE_INFINITY;
       const leftEnd = end ? end.getTime() : Number.POSITIVE_INFINITY;
       const rightStart = filterStart ? filterStart.getTime() : Number.NEGATIVE_INFINITY;
@@ -321,11 +359,13 @@ function matchesFilter(task, filter, plugin) {
     }
     return false;
   }
+
   if (type === "checkbox") {
     const expected = filter.value === "true";
     if (filter.operator === "equals") return Boolean(value) === expected;
     return false;
   }
+
   const left = String(value || "").toLowerCase();
   const right = String(filter.value || "").toLowerCase();
   if (filter.operator === "contains") return left.includes(right);
@@ -333,33 +373,41 @@ function matchesFilter(task, filter, plugin) {
   if (filter.operator === "not_equals") return left !== right;
   return false;
 }
+
 function setDropdownOptions(dropdown, options) {
   dropdown.selectEl.empty();
   options.forEach(([value, label]) => dropdown.addOption(value, label));
 }
-var FrontmatterKanbanPlugin = class extends Plugin {
+
+class FrontmatterKanbanPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
+
     this.registerView(
       VIEW_TYPE_KANBAN,
       (leaf) => new KanbanView(leaf, this)
     );
+
     this.addRibbonIcon("kanban", "Open Kanban board", () => {
       this.activateView();
     });
+
     this.addCommand({
       id: "open-frontmatter-kanban-board",
       name: "Open Kanban board",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "k" }],
       callback: () => this.activateView()
     });
+
     this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
       callback: () => new CreateTaskModal(this.app, this).open()
     });
+
     this.addSettingTab(new KanbanSettingTab(this.app, this));
+
     this.registerEvent(
       this.app.metadataCache.on("changed", () => {
         this.refreshViews();
@@ -369,14 +417,17 @@ var FrontmatterKanbanPlugin = class extends Plugin {
     this.registerEvent(
       this.app.vault.on("delete", () => this.refreshViews())
     );
-    this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1e3));
+    this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1000));
     this.syncCompletionDates();
     this.checkNotifications();
   }
+
   async loadSettings() {
     const savedSettings = await this.loadData() || {};
     this.settings = Object.assign({}, clone(DEFAULT_SETTINGS), savedSettings);
-    const statusSource = Array.isArray(savedSettings.statuses) ? savedSettings.statuses : DEFAULT_SETTINGS.statuses;
+    const statusSource = Array.isArray(savedSettings.statuses)
+      ? savedSettings.statuses
+      : DEFAULT_SETTINGS.statuses;
     this.settings.statuses = Array.from(new Set(statusSource.map((status) => normalizeFieldId(status)).filter(Boolean)));
     if (!this.settings.statuses.length) {
       this.settings.statuses = ["backlog"];
@@ -394,10 +445,12 @@ var FrontmatterKanbanPlugin = class extends Plugin {
       this.settings.createFormFields || {}
     );
   }
+
   async saveSettings() {
     await this.saveData(this.settings);
     this.refreshViews();
   }
+
   async activateView() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN);
     if (leaves.length) {
@@ -408,6 +461,7 @@ var FrontmatterKanbanPlugin = class extends Plugin {
     await leaf.setViewState({ type: VIEW_TYPE_KANBAN, active: true });
     this.app.workspace.revealLeaf(leaf);
   }
+
   refreshViews() {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN)) {
       if (leaf.view && leaf.view.refresh) {
@@ -415,6 +469,7 @@ var FrontmatterKanbanPlugin = class extends Plugin {
       }
     }
   }
+
   getTaskFiles() {
     const folder = normalizePath(this.settings.taskFolder || "");
     return this.app.vault.getMarkdownFiles().filter((file) => {
@@ -427,64 +482,69 @@ var FrontmatterKanbanPlugin = class extends Plugin {
       return frontmatter.kanban_task === true || frontmatter.kanban_task === "true" || Boolean(frontmatter.status);
     });
   }
+
   async getTasks() {
     const files = this.getTaskFiles();
     return files.map((file) => {
       const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = Object.assign({}, cache && cache.frontmatter || {});
+      const frontmatter = Object.assign({}, (cache && cache.frontmatter) || {});
       delete frontmatter.position;
       return { file, frontmatter, pluginSettings: this.settings };
     });
   }
+
   async createTask(values) {
     const folder = normalizePath(this.settings.taskFolder || "Tasks");
     await this.ensureFolder(folder);
+
     const sanitizedTitle = sanitizeFileName(values.title);
     if (!sanitizedTitle) {
       new Notice("Task title is required.");
       return;
     }
+
     const path = normalizePath(`${folder}/${sanitizedTitle}.md`);
     if (this.app.vault.getAbstractFileByPath(path)) {
       new Notice("A task with this title already exists.");
       return;
     }
+
     const frontmatter = {
       kanban_task: true,
       title: values.title,
       status: values.status || this.settings.statuses[0] || "backlog",
       created: nowIso()
     };
+
     if (values.priority) frontmatter.priority = values.priority;
     if (values.due) frontmatter.due = values.due;
     if (values.work_start) frontmatter.work_start = values.work_start;
     if (values.work_end) frontmatter.work_end = values.work_end;
-    if (values.notification_amount !== void 0 && values.notification_amount !== "") {
+    if (values.notification_amount !== undefined && values.notification_amount !== "") {
       frontmatter.notification_amount = Number(values.notification_amount);
       frontmatter.notification_unit = values.notification_unit || "days";
     }
+
     if (frontmatter.status === DONE_STATUS) {
       frontmatter.completed = nowIso();
     }
+
     for (const field of this.settings.customFields) {
       if (!field.showInCreate) continue;
       if (field.type === "date-range") {
         if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
         if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
-      } else if (values[field.id] !== void 0 && values[field.id] !== "") {
+      } else if (values[field.id] !== undefined && values[field.id] !== "") {
         frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
       }
     }
-    const yaml = stringifyYaml(frontmatter).trim();
-    await this.app.vault.create(path, `---
-${yaml}
----
 
-# ${values.title}
-`);
+    const yaml = stringifyYaml(frontmatter).trim();
+    await this.app.vault.create(path, `---\n${yaml}\n---\n\n# ${values.title}\n`);
     new Notice("Task created.");
     this.refreshViews();
   }
+
   async ensureFolder(folderPath) {
     const normalized = normalizePath(folderPath);
     if (!normalized) return;
@@ -497,6 +557,7 @@ ${yaml}
       }
     }
   }
+
   async updateTaskStatus(file, status) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       frontmatter.status = status;
@@ -508,6 +569,7 @@ ${yaml}
     });
     this.refreshViews();
   }
+
   async renameStatus(oldStatus, nextStatus) {
     const normalized = normalizeFieldId(nextStatus);
     if (!normalized) {
@@ -519,8 +581,10 @@ ${yaml}
       return false;
     }
     if (normalized === oldStatus) return true;
+
     this.settings.statuses = this.settings.statuses.map((status) => status === oldStatus ? normalized : status);
     await this.saveData(this.settings);
+
     for (const file of this.getTaskFiles()) {
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
         if (frontmatter.status !== oldStatus) return;
@@ -532,9 +596,11 @@ ${yaml}
         }
       });
     }
+
     this.refreshViews();
     return true;
   }
+
   async removeStatus(status) {
     if (this.settings.statuses.length <= 1) {
       new Notice("At least one status is required.");
@@ -544,20 +610,26 @@ ${yaml}
     await this.saveSettings();
     return true;
   }
+
   async updateTask(file, values) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       frontmatter.kanban_task = true;
       frontmatter.title = values.title.trim();
       frontmatter.status = values.status || this.settings.statuses[0] || "backlog";
+
       if (values.priority) frontmatter.priority = values.priority;
       else delete frontmatter.priority;
+
       if (values.due) frontmatter.due = values.due;
       else delete frontmatter.due;
+
       if (values.work_start) frontmatter.work_start = values.work_start;
       else delete frontmatter.work_start;
+
       if (values.work_end) frontmatter.work_end = values.work_end;
       else delete frontmatter.work_end;
-      if (values.notification_amount !== void 0 && values.notification_amount !== "") {
+
+      if (values.notification_amount !== undefined && values.notification_amount !== "") {
         frontmatter.notification_amount = Number(values.notification_amount);
         frontmatter.notification_unit = values.notification_unit || "days";
       } else {
@@ -566,29 +638,35 @@ ${yaml}
         delete frontmatter.notification_sent_for;
         delete frontmatter.notification_sent_at;
       }
+
       if (frontmatter.notification_sent_for && frontmatter.notification_sent_for !== frontmatter.due) {
         delete frontmatter.notification_sent_for;
         delete frontmatter.notification_sent_at;
       }
+
       if (frontmatter.status === DONE_STATUS) {
         if (!frontmatter.completed) frontmatter.completed = nowIso();
       } else {
         delete frontmatter.completed;
       }
+
       for (const field of this.settings.customFields) {
         if (field.type === "date-range") {
           if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
           else delete frontmatter[`${field.id}_start`];
+
           if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
           else delete frontmatter[`${field.id}_end`];
           continue;
         }
+
         if (field.type === "checkbox") {
-          if (values[field.id] === void 0) delete frontmatter[field.id];
+          if (values[field.id] === undefined) delete frontmatter[field.id];
           else frontmatter[field.id] = Boolean(values[field.id]);
           continue;
         }
-        if (values[field.id] !== void 0 && values[field.id] !== "") {
+
+        if (values[field.id] !== undefined && values[field.id] !== "") {
           frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
         } else {
           delete frontmatter[field.id];
@@ -598,6 +676,7 @@ ${yaml}
     new Notice("Task updated.");
     this.refreshViews();
   }
+
   async syncCompletionDates() {
     if (this.completionSyncRunning) return;
     this.completionSyncRunning = true;
@@ -609,6 +688,7 @@ ${yaml}
         const shouldSetCompleted = status === DONE_STATUS && !hasCompleted;
         const shouldClearCompleted = status && status !== DONE_STATUS && hasCompleted;
         if (!shouldSetCompleted && !shouldClearCompleted) continue;
+
         await this.app.fileManager.processFrontMatter(task.file, (frontmatter) => {
           if (frontmatter.status === DONE_STATUS) {
             if (!frontmatter.completed) frontmatter.completed = nowIso();
@@ -621,6 +701,7 @@ ${yaml}
       this.completionSyncRunning = false;
     }
   }
+
   async checkNotifications() {
     const tasks = await this.getTasks();
     const now = Date.now();
@@ -632,15 +713,17 @@ ${yaml}
       if (!due || leadMs === null) continue;
       if (now < due.getTime() - leadMs) continue;
       if (fm.notification_sent_for === fm.due) continue;
-      new Notice(`Due soon: ${getTaskTitle(task)}`, 8e3);
+
+      new Notice(`Due soon: ${getTaskTitle(task)}`, 8000);
       await this.app.fileManager.processFrontMatter(task.file, (frontmatter) => {
         frontmatter.notification_sent_for = frontmatter.due;
         frontmatter.notification_sent_at = nowIso();
       });
     }
   }
-};
-var KanbanView = class extends ItemView {
+}
+
+class KanbanView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -652,15 +735,19 @@ var KanbanView = class extends ItemView {
     this.cardClickTimer = null;
     this.suppressNextCardClick = false;
   }
+
   getViewType() {
     return VIEW_TYPE_KANBAN;
   }
+
   getDisplayText() {
     return "Kanban Board";
   }
+
   getIcon() {
     return "kanban";
   }
+
   async onOpen() {
     this.registerDomEvent(document, "mousedown", (event) => this.closeToolbarPanelsOnOutsideClick(event));
     this.registerDomEvent(document, "keydown", (event) => {
@@ -668,27 +755,32 @@ var KanbanView = class extends ItemView {
     });
     await this.refresh();
   }
+
   closeToolbarPanelsOnOutsideClick(event) {
     if (!this.openToolbarPanel) return;
     const target = event.target;
     if (target instanceof Element && target.closest(".frontmatter-kanban-toolbar-popover")) return;
     this.closeToolbarPanels();
   }
+
   closeToolbarPanels() {
     this.openToolbarPanel = null;
     this.containerEl.querySelectorAll(".frontmatter-kanban-toolbar-popover[open]").forEach((panel) => {
       panel.open = false;
     });
   }
+
   getFilterGroups() {
     if (!Array.isArray(this.filterGroups) || !this.filterGroups.length) {
       this.filterGroups = [{ mode: this.filterMode || "and", filters: [] }];
     }
     return this.filterGroups;
   }
+
   getFilterCount() {
     return this.getFilterGroups().reduce((count, group) => count + group.filters.length, 0);
   }
+
   createDefaultFilter() {
     const firstField = getAllFieldDefinitions(this.plugin)[0];
     return {
@@ -697,22 +789,37 @@ var KanbanView = class extends ItemView {
       value: ""
     };
   }
+
   async refresh() {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("frontmatter-kanban");
+
     const toolbar = container.createDiv({ cls: "frontmatter-kanban-toolbar" });
     this.renderToolbar(toolbar);
+
     const board = container.createDiv({ cls: "frontmatter-kanban-board" });
     const tasks = this.applySortAndFilters(await this.plugin.getTasks());
+
     for (const status of this.plugin.settings.statuses) {
       this.renderColumn(board, status, tasks.filter((task) => (task.frontmatter.status || "") === status));
     }
   }
+
   renderToolbar(toolbar) {
     const actions = toolbar.createDiv({ cls: "frontmatter-kanban-toolbar-actions" });
-    new ButtonComponent(actions).setIcon("plus").setTooltip("New task").setCta().onClick(() => new CreateTaskModal(this.app, this.plugin).open());
-    new ButtonComponent(actions).setIcon("refresh-cw").setTooltip("Refresh").onClick(() => this.refresh());
+
+    new ButtonComponent(actions)
+      .setIcon("plus")
+      .setTooltip("New task")
+      .setCta()
+      .onClick(() => new CreateTaskModal(this.app, this.plugin).open());
+
+    new ButtonComponent(actions)
+      .setIcon("refresh-cw")
+      .setTooltip("Refresh")
+      .onClick(() => this.refresh());
+
     const panels = toolbar.createDiv({ cls: "frontmatter-kanban-toolbar-panels" });
     this.renderToolbarPanel(panels, "sort", "arrow-up-down", "Sort", (body) => {
       body.createDiv({ cls: "frontmatter-kanban-popover-title", text: "Sort" });
@@ -728,6 +835,7 @@ var KanbanView = class extends ItemView {
         this.sortField = value;
         this.refresh();
       });
+
       sortWrap.createSpan({ text: "Order" });
       const sortDirection = new DropdownComponent(sortWrap);
       sortDirection.addOption("asc", "Asc");
@@ -739,6 +847,7 @@ var KanbanView = class extends ItemView {
         this.refresh();
       });
     });
+
     const filterCount = this.getFilterCount();
     this.renderToolbarPanel(
       panels,
@@ -749,10 +858,12 @@ var KanbanView = class extends ItemView {
       filterCount ? String(filterCount) : ""
     );
   }
+
   renderFiltersPanel(body) {
     const filters = body.createDiv({ cls: "frontmatter-kanban-filters" });
     const filterHeader = filters.createDiv({ cls: "frontmatter-kanban-filter-header" });
     filterHeader.createSpan({ text: "Filter groups" });
+
     const mode = new DropdownComponent(filterHeader);
     mode.addOption("and", "All groups");
     mode.addOption("or", "Any group");
@@ -762,23 +873,31 @@ var KanbanView = class extends ItemView {
       this.filterMode = value;
       this.refresh();
     });
-    new ButtonComponent(filterHeader).setIcon("folder-plus").setTooltip("Add group").onClick(() => {
-      this.openToolbarPanel = "filters";
-      this.getFilterGroups().push({ mode: "and", filters: [this.createDefaultFilter()] });
-      this.refresh();
-    });
+
+    new ButtonComponent(filterHeader)
+      .setIcon("folder-plus")
+      .setTooltip("Add group")
+      .onClick(() => {
+        this.openToolbarPanel = "filters";
+        this.getFilterGroups().push({ mode: "and", filters: [this.createDefaultFilter()] });
+        this.refresh();
+      });
+
     if (!this.getFilterCount()) {
       filters.createDiv({ cls: "frontmatter-kanban-filter-empty", text: "No filters" });
     }
+
     const groups = this.getFilterGroups();
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
       this.renderFilterGroup(filters, groups[groupIndex], groupIndex);
     }
   }
+
   renderFilterGroup(container, group, groupIndex) {
     const groupEl = container.createDiv({ cls: "frontmatter-kanban-filter-group" });
     const header = groupEl.createDiv({ cls: "frontmatter-kanban-filter-group-header" });
     header.createSpan({ text: `Group ${groupIndex + 1}` });
+
     const mode = new DropdownComponent(header);
     mode.addOption("and", "All conditions");
     mode.addOption("or", "Any condition");
@@ -788,26 +907,37 @@ var KanbanView = class extends ItemView {
       group.mode = value;
       this.refresh();
     });
-    new ButtonComponent(header).setIcon("plus").setTooltip("Add condition").onClick(() => {
-      this.openToolbarPanel = "filters";
-      group.filters.push(this.createDefaultFilter());
-      this.refresh();
-    });
-    new ButtonComponent(header).setIcon("x").setTooltip("Remove group").onClick(() => {
-      this.openToolbarPanel = "filters";
-      this.getFilterGroups().splice(groupIndex, 1);
-      if (!this.filterGroups.length) {
-        this.filterGroups.push({ mode: "and", filters: [] });
-      }
-      this.refresh();
-    });
+
+    new ButtonComponent(header)
+      .setIcon("plus")
+      .setTooltip("Add condition")
+      .onClick(() => {
+        this.openToolbarPanel = "filters";
+        group.filters.push(this.createDefaultFilter());
+        this.refresh();
+      });
+
+    new ButtonComponent(header)
+      .setIcon("x")
+      .setTooltip("Remove group")
+      .onClick(() => {
+        this.openToolbarPanel = "filters";
+        this.getFilterGroups().splice(groupIndex, 1);
+        if (!this.filterGroups.length) {
+          this.filterGroups.push({ mode: "and", filters: [] });
+        }
+        this.refresh();
+      });
+
     if (!group.filters.length) {
       groupEl.createDiv({ cls: "frontmatter-kanban-filter-empty", text: "No conditions" });
     }
+
     for (let filterIndex = 0; filterIndex < group.filters.length; filterIndex += 1) {
       this.renderFilterRow(groupEl, group, group.filters[filterIndex], filterIndex);
     }
   }
+
   renderToolbarPanel(container, key, icon, tooltip, renderBody, badgeText = "") {
     const panel = container.createEl("details", { cls: "frontmatter-kanban-toolbar-popover" });
     panel.open = this.openToolbarPanel === key;
@@ -822,6 +952,7 @@ var KanbanView = class extends ItemView {
         this.openToolbarPanel = null;
       }
     });
+
     const summary = panel.createEl("summary");
     summary.setAttr("aria-label", tooltip);
     summary.setAttr("title", tooltip);
@@ -830,9 +961,11 @@ var KanbanView = class extends ItemView {
     if (badgeText) {
       summary.createSpan({ cls: "frontmatter-kanban-toolbar-badge", text: badgeText });
     }
+
     const body = panel.createDiv({ cls: "frontmatter-kanban-popover-body" });
     renderBody(body);
   }
+
   renderFilterRow(container, group, filter, filterIndex) {
     const row = container.createDiv({ cls: "frontmatter-kanban-filter-row" });
     const fields = getAllFieldDefinitions(this.plugin);
@@ -844,13 +977,14 @@ var KanbanView = class extends ItemView {
     fieldDropdown.onChange((value) => {
       this.openToolbarPanel = "filters";
       filter.field = value;
-      const type2 = getFieldType(this.plugin, value);
-      filter.operator = getOperatorsForType(type2)[0][0];
+      const type = getFieldType(this.plugin, value);
+      filter.operator = getOperatorsForType(type)[0][0];
       filter.value = "";
       filter.valueStart = "";
       filter.valueEnd = "";
       this.refresh();
     });
+
     const type = getFieldType(this.plugin, filter.field);
     const operatorDropdown = new DropdownComponent(row);
     setDropdownOptions(operatorDropdown, getOperatorsForType(type));
@@ -860,18 +994,25 @@ var KanbanView = class extends ItemView {
       filter.operator = value;
       this.refresh();
     });
+
     this.renderFilterValue(row, filter, type);
-    new ButtonComponent(row).setIcon("x").setTooltip("Remove condition").onClick(() => {
-      this.openToolbarPanel = "filters";
-      group.filters.splice(filterIndex, 1);
-      this.refresh();
-    });
+
+    new ButtonComponent(row)
+      .setIcon("x")
+      .setTooltip("Remove condition")
+      .onClick(() => {
+        this.openToolbarPanel = "filters";
+        group.filters.splice(filterIndex, 1);
+        this.refresh();
+      });
   }
+
   renderFilterValue(row, filter, type) {
     if (filter.operator === "is_empty" || filter.operator === "not_empty") {
       row.createSpan({ cls: "frontmatter-kanban-filter-placeholder", text: "No value" });
       return;
     }
+
     if (type === "date-range" && filter.operator === "overlaps") {
       const start = row.createEl("input", { type: "date" });
       start.value = filter.valueStart || "";
@@ -889,26 +1030,29 @@ var KanbanView = class extends ItemView {
       });
       return;
     }
+
     if (type === "date" || type === "date-range") {
-      const input2 = row.createEl("input", { type: "date" });
-      input2.value = filter.value || "";
-      input2.addEventListener("change", () => {
+      const input = row.createEl("input", { type: "date" });
+      input.value = filter.value || "";
+      input.addEventListener("change", () => {
         this.openToolbarPanel = "filters";
-        filter.value = input2.value;
+        filter.value = input.value;
         this.refresh();
       });
       return;
     }
+
     if (type === "datetime") {
-      const input2 = row.createEl("input", { type: "datetime-local" });
-      input2.value = filter.value || "";
-      input2.addEventListener("change", () => {
+      const input = row.createEl("input", { type: "datetime-local" });
+      input.value = filter.value || "";
+      input.addEventListener("change", () => {
         this.openToolbarPanel = "filters";
-        filter.value = input2.value;
+        filter.value = input.value;
         this.refresh();
       });
       return;
     }
+
     if (type === "checkbox") {
       if (!filter.value) filter.value = "true";
       const dropdown = new DropdownComponent(row);
@@ -922,6 +1066,7 @@ var KanbanView = class extends ItemView {
       });
       return;
     }
+
     if (filter.field === "status") {
       if (!filter.value) filter.value = this.plugin.settings.statuses[0] || "";
       const dropdown = new DropdownComponent(row);
@@ -936,6 +1081,7 @@ var KanbanView = class extends ItemView {
       });
       return;
     }
+
     if (filter.field === "priority") {
       if (!filter.value) filter.value = PRIORITIES[0];
       const dropdown = new DropdownComponent(row);
@@ -950,6 +1096,7 @@ var KanbanView = class extends ItemView {
       });
       return;
     }
+
     const customField = this.plugin.settings.customFields.find((field) => field.id === filter.field);
     if (customField && customField.type === "select") {
       const options = customField.options.split(",").map((item) => item.trim()).filter(Boolean);
@@ -966,6 +1113,7 @@ var KanbanView = class extends ItemView {
       });
       return;
     }
+
     const input = row.createEl("input", { type: type === "number" ? "number" : "text" });
     input.value = filter.value || "";
     input.addEventListener("change", () => {
@@ -974,10 +1122,12 @@ var KanbanView = class extends ItemView {
       this.refresh();
     });
   }
+
   renderColumn(board, status, tasks) {
     const column = board.createDiv({ cls: "frontmatter-kanban-column" });
     column.dataset.status = status;
     column.createDiv({ cls: "frontmatter-kanban-column-title", text: status });
+
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
     cards.addEventListener("dragover", (event) => {
       event.preventDefault();
@@ -999,10 +1149,12 @@ var KanbanView = class extends ItemView {
         await this.plugin.updateTaskStatus(file, status);
       }
     });
+
     for (const task of tasks) {
       this.renderCard(cards, task);
     }
   }
+
   renderCard(cards, task) {
     const card = cards.createDiv({ cls: `frontmatter-kanban-card ${getDueClass(task)}` });
     card.draggable = true;
@@ -1041,7 +1193,9 @@ var KanbanView = class extends ItemView {
       }
       this.app.workspace.getLeaf(false).openFile(task.file);
     });
+
     card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+
     const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
     if (task.frontmatter.priority) {
       meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
@@ -1054,6 +1208,7 @@ var KanbanView = class extends ItemView {
       meta.createSpan({ text: `Work ${workOn}` });
     }
   }
+
   applySortAndFilters(tasks) {
     let result = tasks.slice();
     const activeGroups = this.getFilterGroups().filter((group) => group.filters.length);
@@ -1066,6 +1221,7 @@ var KanbanView = class extends ItemView {
         return this.filterMode === "or" ? groupMatches.some(Boolean) : groupMatches.every(Boolean);
       });
     }
+
     const type = getFieldType(this.plugin, this.sortField);
     result.sort((a, b) => {
       const compared = compareValues(type, getFieldValue(a, this.sortField), getFieldValue(b, this.sortField));
@@ -1073,10 +1229,10 @@ var KanbanView = class extends ItemView {
     });
     return result;
   }
-};
-var EditTaskModal = class extends Modal {
+}
+
+class EditTaskModal extends Modal {
   constructor(app, plugin, task) {
-    var _a, _b;
     super(app);
     this.plugin = plugin;
     this.task = task;
@@ -1088,69 +1244,94 @@ var EditTaskModal = class extends Modal {
       due: fm.due || "",
       work_start: fm.work_start || "",
       work_end: fm.work_end || "",
-      notification_amount: (_a = fm.notification_amount) != null ? _a : "",
+      notification_amount: fm.notification_amount ?? "",
       notification_unit: fm.notification_unit || "days"
     };
+
     for (const field of plugin.settings.customFields) {
       if (field.type === "date-range") {
         this.values[`${field.id}_start`] = fm[`${field.id}_start`] || "";
         this.values[`${field.id}_end`] = fm[`${field.id}_end`] || "";
       } else if (field.type === "checkbox") {
         const value = fm[field.id];
-        if (value !== void 0) this.values[field.id] = value === true || value === "true";
+        if (value !== undefined) this.values[field.id] = value === true || value === "true";
       } else {
-        this.values[field.id] = (_b = fm[field.id]) != null ? _b : "";
+        this.values[field.id] = fm[field.id] ?? "";
       }
     }
   }
+
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("frontmatter-kanban-modal");
     contentEl.createEl("h2", { text: "Edit task" });
-    new Setting(contentEl).setName("Title").addText((text) => text.setPlaceholder("Task title").setValue(this.values.title).onChange((value) => {
-      this.values.title = value;
-    }));
-    new Setting(contentEl).setName("Status").addDropdown((dropdown) => {
-      for (const status of this.plugin.settings.statuses) {
-        dropdown.addOption(status, status);
-      }
-      dropdown.setValue(this.values.status);
-      dropdown.onChange((value) => {
-        this.values.status = value;
+
+    new Setting(contentEl)
+      .setName("Title")
+      .addText((text) => text
+        .setPlaceholder("Task title")
+        .setValue(this.values.title)
+        .onChange((value) => {
+          this.values.title = value;
+        }));
+
+    new Setting(contentEl)
+      .setName("Status")
+      .addDropdown((dropdown) => {
+        for (const status of this.plugin.settings.statuses) {
+          dropdown.addOption(status, status);
+        }
+        dropdown.setValue(this.values.status);
+        dropdown.onChange((value) => {
+          this.values.status = value;
+        });
       });
-    });
-    new Setting(contentEl).setName("Priority").addDropdown((dropdown) => {
-      dropdown.addOption("", "None");
-      for (const priority of PRIORITIES) {
-        dropdown.addOption(priority, priority);
-      }
-      dropdown.setValue(this.values.priority);
-      dropdown.onChange((value) => {
-        this.values.priority = value;
+
+    new Setting(contentEl)
+      .setName("Priority")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("", "None");
+        for (const priority of PRIORITIES) {
+          dropdown.addOption(priority, priority);
+        }
+        dropdown.setValue(this.values.priority);
+        dropdown.onChange((value) => {
+          this.values.priority = value;
+        });
       });
-    });
+
     this.renderDateTimeSetting(contentEl, "Due date", "due");
     this.renderDateRangeSetting(contentEl, "Work on", "work_start", "work_end");
     this.renderNotificationSetting(contentEl);
+
     for (const field of this.plugin.settings.customFields) {
       this.renderCustomField(contentEl, field);
     }
+
     const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
-    new ButtonComponent(footer).setButtonText("Cancel").onClick(() => this.close());
-    new ButtonComponent(footer).setButtonText("Open note").onClick(() => {
-      this.close();
-      this.app.workspace.getLeaf(false).openFile(this.task.file);
-    });
-    new ButtonComponent(footer).setButtonText("Save").setCta().onClick(async () => {
-      if (!this.values.title.trim()) {
-        new Notice("Task title is required.");
-        return;
-      }
-      await this.plugin.updateTask(this.task.file, this.values);
-      this.close();
-    });
+    new ButtonComponent(footer)
+      .setButtonText("Cancel")
+      .onClick(() => this.close());
+    new ButtonComponent(footer)
+      .setButtonText("Open note")
+      .onClick(() => {
+        this.close();
+        this.app.workspace.getLeaf(false).openFile(this.task.file);
+      });
+    new ButtonComponent(footer)
+      .setButtonText("Save")
+      .setCta()
+      .onClick(async () => {
+        if (!this.values.title.trim()) {
+          new Notice("Task title is required.");
+          return;
+        }
+        await this.plugin.updateTask(this.task.file, this.values);
+        this.close();
+      });
   }
+
   renderDateTimeSetting(container, label, key) {
     const setting = new Setting(container).setName(label);
     const input = setting.controlEl.createEl("input", { type: "datetime-local" });
@@ -1159,6 +1340,7 @@ var EditTaskModal = class extends Modal {
       this.values[key] = readDateInputAsIso(input.value);
     });
   }
+
   renderDateRangeSetting(container, label, startKey, endKey) {
     const setting = new Setting(container).setName(label);
     const start = setting.controlEl.createEl("input", { type: "date" });
@@ -1172,12 +1354,13 @@ var EditTaskModal = class extends Modal {
       this.values[endKey] = end.value;
     });
   }
+
   renderNotificationSetting(container) {
     const setting = new Setting(container).setName("Notify before due");
     const amount = setting.controlEl.createEl("input", { type: "number" });
     amount.min = "0";
     amount.placeholder = "Amount";
-    amount.value = this.values.notification_amount === void 0 ? "" : String(this.values.notification_amount);
+    amount.value = this.values.notification_amount === undefined ? "" : String(this.values.notification_amount);
     amount.addEventListener("change", () => {
       this.values.notification_amount = amount.value;
     });
@@ -1190,11 +1373,13 @@ var EditTaskModal = class extends Modal {
       this.values.notification_unit = value;
     });
   }
+
   renderCustomField(container, field) {
     if (field.type === "date-range") {
       this.renderDateRangeSetting(container, field.name, `${field.id}_start`, `${field.id}_end`);
       return;
     }
+
     const setting = new Setting(container).setName(field.name);
     if (field.type === "select") {
       setting.addDropdown((dropdown) => {
@@ -1209,12 +1394,16 @@ var EditTaskModal = class extends Modal {
       });
       return;
     }
+
     if (field.type === "checkbox") {
-      setting.addToggle((toggle) => toggle.setValue(Boolean(this.values[field.id])).onChange((value) => {
-        this.values[field.id] = value;
-      }));
+      setting.addToggle((toggle) => toggle
+        .setValue(Boolean(this.values[field.id]))
+        .onChange((value) => {
+          this.values[field.id] = value;
+        }));
       return;
     }
+
     const inputType = field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : "text";
     const input = setting.controlEl.createEl("input", { type: inputType });
     if (field.type === "datetime") {
@@ -1222,17 +1411,18 @@ var EditTaskModal = class extends Modal {
     } else if (field.type === "date") {
       input.value = formatDateForInput(this.values[field.id]);
     } else {
-      input.value = this.values[field.id] === void 0 ? "" : String(this.values[field.id]);
+      input.value = this.values[field.id] === undefined ? "" : String(this.values[field.id]);
     }
     input.addEventListener("change", () => {
       this.values[field.id] = field.type === "datetime" ? readDateInputAsIso(input.value) : input.value;
     });
   }
+
   onClose() {
     this.contentEl.empty();
   }
-};
-var CreateTaskModal = class extends Modal {
+}
+class CreateTaskModal extends Modal {
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
@@ -1242,60 +1432,83 @@ var CreateTaskModal = class extends Modal {
       notification_unit: "days"
     };
   }
+
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("frontmatter-kanban-modal");
     contentEl.createEl("h2", { text: "Create task" });
-    new Setting(contentEl).setName("Title").addText((text) => text.setPlaceholder("Task title").onChange((value) => {
-      this.values.title = value;
-    }));
+
+    new Setting(contentEl)
+      .setName("Title")
+      .addText((text) => text
+        .setPlaceholder("Task title")
+        .onChange((value) => {
+          this.values.title = value;
+        }));
+
     if (this.plugin.settings.createFormFields.status) {
-      new Setting(contentEl).setName("Status").addDropdown((dropdown) => {
-        for (const status of this.plugin.settings.statuses) {
-          dropdown.addOption(status, status);
-        }
-        dropdown.setValue(this.values.status);
-        dropdown.onChange((value) => {
-          this.values.status = value;
+      new Setting(contentEl)
+        .setName("Status")
+        .addDropdown((dropdown) => {
+          for (const status of this.plugin.settings.statuses) {
+            dropdown.addOption(status, status);
+          }
+          dropdown.setValue(this.values.status);
+          dropdown.onChange((value) => {
+            this.values.status = value;
+          });
         });
-      });
     }
+
     if (this.plugin.settings.createFormFields.priority) {
       this.values.priority = this.values.priority || "medium";
-      new Setting(contentEl).setName("Priority").addDropdown((dropdown) => {
-        for (const priority of PRIORITIES) {
-          dropdown.addOption(priority, priority);
-        }
-        dropdown.setValue(this.values.priority);
-        dropdown.onChange((value) => {
-          this.values.priority = value;
+      new Setting(contentEl)
+        .setName("Priority")
+        .addDropdown((dropdown) => {
+          for (const priority of PRIORITIES) {
+            dropdown.addOption(priority, priority);
+          }
+          dropdown.setValue(this.values.priority);
+          dropdown.onChange((value) => {
+            this.values.priority = value;
+          });
         });
-      });
     }
+
     if (this.plugin.settings.createFormFields.due) {
       this.renderDateTimeSetting(contentEl, "Due date", "due");
     }
+
     if (this.plugin.settings.createFormFields.workOn) {
       this.renderDateRangeSetting(contentEl, "Work on", "work_start", "work_end");
     }
+
     if (this.plugin.settings.createFormFields.notification) {
       this.renderNotificationSetting(contentEl);
     }
+
     for (const field of this.plugin.settings.customFields.filter((item) => item.showInCreate)) {
       this.renderCustomField(contentEl, field);
     }
+
     const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
-    new ButtonComponent(footer).setButtonText("Cancel").onClick(() => this.close());
-    new ButtonComponent(footer).setButtonText("Create").setCta().onClick(async () => {
-      if (!this.values.title.trim()) {
-        new Notice("Task title is required.");
-        return;
-      }
-      await this.plugin.createTask(this.values);
-      this.close();
-    });
+    new ButtonComponent(footer)
+      .setButtonText("Cancel")
+      .onClick(() => this.close());
+    new ButtonComponent(footer)
+      .setButtonText("Create")
+      .setCta()
+      .onClick(async () => {
+        if (!this.values.title.trim()) {
+          new Notice("Task title is required.");
+          return;
+        }
+        await this.plugin.createTask(this.values);
+        this.close();
+      });
   }
+
   renderDateTimeSetting(container, label, key) {
     const setting = new Setting(container).setName(label);
     const input = setting.controlEl.createEl("input", { type: "datetime-local" });
@@ -1303,6 +1516,7 @@ var CreateTaskModal = class extends Modal {
       this.values[key] = readDateInputAsIso(input.value);
     });
   }
+
   renderDateRangeSetting(container, label, startKey, endKey) {
     const setting = new Setting(container).setName(label);
     const start = setting.controlEl.createEl("input", { type: "date" });
@@ -1314,6 +1528,7 @@ var CreateTaskModal = class extends Modal {
       this.values[endKey] = end.value;
     });
   }
+
   renderNotificationSetting(container) {
     const setting = new Setting(container).setName("Notify before due");
     const amount = setting.controlEl.createEl("input", { type: "number" });
@@ -1331,11 +1546,13 @@ var CreateTaskModal = class extends Modal {
       this.values.notification_unit = value;
     });
   }
+
   renderCustomField(container, field) {
     if (field.type === "date-range") {
       this.renderDateRangeSetting(container, field.name, `${field.id}_start`, `${field.id}_end`);
       return;
     }
+
     const setting = new Setting(container).setName(field.name);
     if (field.type === "select") {
       setting.addDropdown((dropdown) => {
@@ -1348,72 +1565,97 @@ var CreateTaskModal = class extends Modal {
       });
       return;
     }
+
     if (field.type === "checkbox") {
       setting.addToggle((toggle) => toggle.onChange((value) => {
         this.values[field.id] = value;
       }));
       return;
     }
+
     const inputType = field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : "text";
     const input = setting.controlEl.createEl("input", { type: inputType });
     input.addEventListener("change", () => {
       this.values[field.id] = field.type === "datetime" ? readDateInputAsIso(input.value) : input.value;
     });
   }
+
   onClose() {
     this.contentEl.empty();
   }
-};
-var KanbanSettingTab = class extends PluginSettingTab {
+}
+
+class KanbanSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
+
   display() {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
+
     containerEl.createEl("h2", { text: "Frontmatter Kanban Board" });
-    new Setting(containerEl).setName("Task folder").setDesc("Markdown task notes are created and read from this folder.").addText((text) => text.setPlaceholder("Tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
-      this.plugin.settings.taskFolder = value.trim() || "Tasks";
-      await this.plugin.saveSettings();
-    }));
+
+    new Setting(containerEl)
+      .setName("Task folder")
+      .setDesc("Markdown task notes are created and read from this folder.")
+      .addText((text) => text
+        .setPlaceholder("Tasks")
+        .setValue(this.plugin.settings.taskFolder)
+        .onChange(async (value) => {
+          this.plugin.settings.taskFolder = value.trim() || "Tasks";
+          await this.plugin.saveSettings();
+        }));
+
     this.renderStatuses(containerEl);
     this.renderCreateFormFields(containerEl);
     this.renderCustomFields(containerEl);
   }
+
   renderStatuses(container) {
     container.createEl("h3", { text: "Statuses" });
     const list = container.createDiv({ cls: "frontmatter-kanban-settings-list" });
     for (const status of this.plugin.settings.statuses) {
       const row = list.createDiv({ cls: "frontmatter-kanban-settings-row frontmatter-kanban-status-row" });
-      const input2 = new TextComponent(row).setValue(status);
-      new ButtonComponent(row).setButtonText("Save").onClick(async () => {
-        const renamed = await this.plugin.renameStatus(status, input2.getValue());
-        if (renamed) this.display();
-      });
-      new ButtonComponent(row).setButtonText("Remove").onClick(async () => {
-        const removed = await this.plugin.removeStatus(status);
-        if (removed) this.display();
-      });
+      const input = new TextComponent(row).setValue(status);
+
+      new ButtonComponent(row)
+        .setButtonText("Save")
+        .onClick(async () => {
+          const renamed = await this.plugin.renameStatus(status, input.getValue());
+          if (renamed) this.display();
+        });
+
+      new ButtonComponent(row)
+        .setButtonText("Remove")
+        .onClick(async () => {
+          const removed = await this.plugin.removeStatus(status);
+          if (removed) this.display();
+        });
     }
+
     const addRow = container.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
     const input = new TextComponent(addRow).setPlaceholder("New status");
-    new ButtonComponent(addRow).setButtonText("Add status").onClick(async () => {
-      const status = normalizeFieldId(input.getValue());
-      if (!status) {
-        new Notice("Status is required.");
-        return;
-      }
-      if (this.plugin.settings.statuses.includes(status)) {
-        new Notice("Status already exists.");
-        return;
-      }
-      this.plugin.settings.statuses.push(status);
-      await this.plugin.saveSettings();
-      this.display();
-    });
+    new ButtonComponent(addRow)
+      .setButtonText("Add status")
+      .onClick(async () => {
+        const status = normalizeFieldId(input.getValue());
+        if (!status) {
+          new Notice("Status is required.");
+          return;
+        }
+        if (this.plugin.settings.statuses.includes(status)) {
+          new Notice("Status already exists.");
+          return;
+        }
+        this.plugin.settings.statuses.push(status);
+        await this.plugin.saveSettings();
+        this.display();
+      });
   }
+
   renderCreateFormFields(container) {
     container.createEl("h3", { text: "Create task form" });
     const options = [
@@ -1424,18 +1666,24 @@ var KanbanSettingTab = class extends PluginSettingTab {
       ["notification", "Notification"]
     ];
     for (const [key, label] of options) {
-      new Setting(container).setName(label).addToggle((toggle) => toggle.setValue(Boolean(this.plugin.settings.createFormFields[key])).onChange(async (value) => {
-        this.plugin.settings.createFormFields[key] = value;
-        await this.plugin.saveSettings();
-      }));
+      new Setting(container)
+        .setName(label)
+        .addToggle((toggle) => toggle
+          .setValue(Boolean(this.plugin.settings.createFormFields[key]))
+          .onChange(async (value) => {
+            this.plugin.settings.createFormFields[key] = value;
+            await this.plugin.saveSettings();
+          }));
     }
   }
+
   renderCustomFields(container) {
     container.createEl("h3", { text: "Custom fields" });
     const list = container.createDiv({ cls: "frontmatter-kanban-settings-list" });
     for (const field of this.plugin.settings.customFields) {
       this.renderCustomFieldRow(list, field);
     }
+
     container.createEl("h4", { text: "Add field" });
     const add = container.createDiv({ cls: "frontmatter-kanban-custom-field-editor" });
     const name = new TextComponent(add).setPlaceholder("Name");
@@ -1447,29 +1695,33 @@ var KanbanSettingTab = class extends PluginSettingTab {
     const showInCreate = add.createEl("label", { cls: "frontmatter-kanban-inline-toggle" });
     const showInCreateInput = showInCreate.createEl("input", { type: "checkbox" });
     showInCreate.createSpan({ text: "Show in create form" });
-    new ButtonComponent(add).setButtonText("Add field").onClick(async () => {
-      const fieldName = name.getValue().trim();
-      const id = normalizeFieldId(fieldName);
-      if (!fieldName || !id) {
-        new Notice("Field name is required.");
-        return;
-      }
-      const existingIds = new Set(getAllFieldDefinitions(this.plugin).map((field) => field.id));
-      if (existingIds.has(id)) {
-        new Notice("Field already exists.");
-        return;
-      }
-      this.plugin.settings.customFields.push({
-        id,
-        name: fieldName,
-        type: type.getValue(),
-        options: options.getValue(),
-        showInCreate: showInCreateInput.checked
+
+    new ButtonComponent(add)
+      .setButtonText("Add field")
+      .onClick(async () => {
+        const fieldName = name.getValue().trim();
+        const id = normalizeFieldId(fieldName);
+        if (!fieldName || !id) {
+          new Notice("Field name is required.");
+          return;
+        }
+        const existingIds = new Set(getAllFieldDefinitions(this.plugin).map((field) => field.id));
+        if (existingIds.has(id)) {
+          new Notice("Field already exists.");
+          return;
+        }
+        this.plugin.settings.customFields.push({
+          id,
+          name: fieldName,
+          type: type.getValue(),
+          options: options.getValue(),
+          showInCreate: showInCreateInput.checked
+        });
+        await this.plugin.saveSettings();
+        this.display();
       });
-      await this.plugin.saveSettings();
-      this.display();
-    });
   }
+
   renderCustomFieldRow(container, field) {
     const row = container.createDiv({ cls: "frontmatter-kanban-custom-field-row" });
     const name = new TextComponent(row).setValue(field.name);
@@ -1478,29 +1730,38 @@ var KanbanSettingTab = class extends PluginSettingTab {
       type.addOption(fieldType, fieldType);
     }
     type.setValue(field.type);
-    const options = new TextComponent(row).setPlaceholder("Select options").setValue(field.options || "");
+    const options = new TextComponent(row)
+      .setPlaceholder("Select options")
+      .setValue(field.options || "");
     const showInCreate = row.createEl("label", { cls: "frontmatter-kanban-inline-toggle" });
     const showInCreateInput = showInCreate.createEl("input", { type: "checkbox" });
     showInCreateInput.checked = Boolean(field.showInCreate);
     showInCreate.createSpan({ text: "Create form" });
-    new ButtonComponent(row).setButtonText("Save").onClick(async () => {
-      const nextName = name.getValue().trim();
-      if (!nextName) {
-        new Notice("Field name is required.");
-        return;
-      }
-      field.name = nextName;
-      field.type = type.getValue();
-      field.options = options.getValue();
-      field.showInCreate = showInCreateInput.checked;
-      await this.plugin.saveSettings();
-      this.display();
-    });
-    new ButtonComponent(row).setButtonText("Remove").onClick(async () => {
-      this.plugin.settings.customFields = this.plugin.settings.customFields.filter((item) => item.id !== field.id);
-      await this.plugin.saveSettings();
-      this.display();
-    });
+
+    new ButtonComponent(row)
+      .setButtonText("Save")
+      .onClick(async () => {
+        const nextName = name.getValue().trim();
+        if (!nextName) {
+          new Notice("Field name is required.");
+          return;
+        }
+        field.name = nextName;
+        field.type = type.getValue();
+        field.options = options.getValue();
+        field.showInCreate = showInCreateInput.checked;
+        await this.plugin.saveSettings();
+        this.display();
+      });
+
+    new ButtonComponent(row)
+      .setButtonText("Remove")
+      .onClick(async () => {
+        this.plugin.settings.customFields = this.plugin.settings.customFields.filter((item) => item.id !== field.id);
+        await this.plugin.saveSettings();
+        this.display();
+      });
   }
-};
+}
+
 module.exports = FrontmatterKanbanPlugin;
