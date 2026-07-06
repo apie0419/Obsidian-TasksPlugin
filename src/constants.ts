@@ -7,7 +7,7 @@ export const PRIORITY_WEIGHTS = {
   high: 3,
   medium: 2,
   easy: 1,
-  low: 1
+  low: 0
 };
 
 export const DEFAULT_SETTINGS = {

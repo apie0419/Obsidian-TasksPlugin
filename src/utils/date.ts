@@ -2,6 +2,12 @@ export function nowIso() {
   return new Date().toISOString();
 }
 
+export function formatTimestampForFileName(value = new Date()) {
+  const date = toDate(value) || new Date();
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 19).replace("T", " ").replace(/:/g, "-");
+}
+
 export function toDate(value) {
   if (!value) return null;
   const date = new Date(value);

@@ -8,8 +8,8 @@ import { KanbanView } from "./views/KanbanView";
 import { CreateTaskModal } from "./modals/TaskModals";
 import { KanbanSettingTab } from "./settings/KanbanSettingTab";
 import { cleanStatus, dedupeStatuses, isDoneStatus, statusEquals } from "./status";
-import { getNotificationLeadMs, getTaskTitle } from "./taskFields";
-import { nowIso, toDate } from "./utils/date";
+import { getNotificationLeadMs, getPriorityWeight, getTaskTitle } from "./taskFields";
+import { formatTimestampForFileName, nowIso, toDate } from "./utils/date";
 import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
 
 export default class FrontmatterKanbanPlugin extends Plugin {
@@ -45,6 +45,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       this.app.metadataCache.on("changed", () => {
         this.refreshViews();
         this.syncCompletionDates();
+        this.syncPriorityWeights();
       })
     );
     this.registerEvent(
@@ -53,6 +54,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1000));
 
     this.syncCompletionDates();
+    this.syncPriorityWeights();
     this.checkNotifications();
   }
 
@@ -71,6 +73,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       name: field.name || field.id || "",
       type: FIELD_TYPES.includes(field.type) ? field.type : "text",
       options: field.options || "",
+      defaultValue: field.defaultValue ?? "",
       showInCreate: Boolean(field.showInCreate)
     })).filter((field) => field.id && field.name);
     this.settings.createFormFields = Object.assign(
@@ -91,7 +94,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       this.app.workspace.revealLeaf(leaves[0]);
       return;
     }
-    const leaf = this.app.workspace.getRightLeaf(false);
+    const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: VIEW_TYPE_KANBAN, active: true });
     this.app.workspace.revealLeaf(leaf);
   }
@@ -137,11 +140,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       return;
     }
 
-    const path = normalizePath(`${folder}/${sanitizedTitle}.md`);
-    if (this.app.vault.getAbstractFileByPath(path)) {
-      new Notice("A task with this title already exists.");
-      return;
-    }
+    const path = this.getNewTaskPath(folder, sanitizedTitle);
 
     const frontmatter = {
       kanban_task: true,
@@ -150,7 +149,10 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       created: nowIso()
     };
 
-    if (values.priority) frontmatter.priority = values.priority;
+    if (values.priority) {
+      frontmatter.priority = values.priority;
+      frontmatter.priority_weight = getPriorityWeight(values.priority);
+    }
     if (values.due) frontmatter.due = values.due;
     if (values.work_start) frontmatter.work_start = values.work_start;
     if (values.work_end) frontmatter.work_end = values.work_end;
@@ -164,10 +166,11 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
 
     for (const field of this.settings.customFields) {
-      if (!field.showInCreate) continue;
       if (field.type === "date-range") {
         if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
         if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
+      } else if (field.type === "checkbox" && values[field.id] !== undefined && values[field.id] !== "") {
+        frontmatter[field.id] = values[field.id] === true || values[field.id] === "true";
       } else if (values[field.id] !== undefined && values[field.id] !== "") {
         frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
       }
@@ -177,6 +180,18 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.app.vault.create(path, `---\n${yaml}\n---\n\n# ${values.title}\n`);
     new Notice("Task created.");
     this.refreshViews();
+  }
+
+  getNewTaskPath(folder, sanitizedTitle) {
+    const prefix = formatTimestampForFileName();
+    const baseName = `${prefix} - ${sanitizedTitle}`;
+    let path = normalizePath(`${folder}/${baseName}.md`);
+    let counter = 2;
+    while (this.app.vault.getAbstractFileByPath(path)) {
+      path = normalizePath(`${folder}/${baseName} ${counter}.md`);
+      counter += 1;
+    }
+    return path;
   }
 
   async ensureFolder(folderPath) {
@@ -251,8 +266,13 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       frontmatter.title = values.title.trim();
       frontmatter.status = values.status || this.settings.statuses[0] || "backlog";
 
-      if (values.priority) frontmatter.priority = values.priority;
-      else delete frontmatter.priority;
+      if (values.priority) {
+        frontmatter.priority = values.priority;
+        frontmatter.priority_weight = getPriorityWeight(values.priority);
+      } else {
+        delete frontmatter.priority;
+        delete frontmatter.priority_weight;
+      }
 
       if (values.due) frontmatter.due = values.due;
       else delete frontmatter.due;
@@ -296,7 +316,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
         if (field.type === "checkbox") {
           if (values[field.id] === undefined) delete frontmatter[field.id];
-          else frontmatter[field.id] = Boolean(values[field.id]);
+          else frontmatter[field.id] = values[field.id] === true || values[field.id] === "true";
           continue;
         }
 
@@ -333,6 +353,32 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       }
     } finally {
       this.completionSyncRunning = false;
+    }
+  }
+
+  async syncPriorityWeights() {
+    if (this.prioritySyncRunning) return;
+    this.prioritySyncRunning = true;
+    try {
+      const tasks = await this.getTasks();
+      for (const task of tasks) {
+        const expectedWeight = task.frontmatter.priority ? getPriorityWeight(task.frontmatter.priority) : undefined;
+        if (expectedWeight === undefined) {
+          if (task.frontmatter.priority_weight === undefined) continue;
+        } else if (Number(task.frontmatter.priority_weight) === expectedWeight) {
+          continue;
+        }
+
+        await this.app.fileManager.processFrontMatter(task.file, (frontmatter) => {
+          if (frontmatter.priority) {
+            frontmatter.priority_weight = getPriorityWeight(frontmatter.priority);
+          } else {
+            delete frontmatter.priority_weight;
+          }
+        });
+      }
+    } finally {
+      this.prioritySyncRunning = false;
     }
   }
 

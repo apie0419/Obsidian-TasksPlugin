@@ -3,6 +3,28 @@ import { PRIORITIES } from "../constants";
 import { getTaskTitle } from "../taskFields";
 import { formatDateForInput, formatDateTimeForInput, readDateInputAsIso } from "../utils/date";
 
+function parseCheckboxValue(value) {
+  if (value === true || value === false) return value;
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "true" || normalized === "yes" || normalized === "1" || normalized === "checked";
+}
+
+function parseDateRangeDefault(value) {
+  const parts = String(value || "").split(/\s*(?:,|\.\.| to )\s*/i).map((item) => item.trim()).filter(Boolean);
+  return {
+    start: parts[0] || "",
+    end: parts[1] || ""
+  };
+}
+
+function getDefaultFieldValue(field) {
+  const value = field.defaultValue ?? "";
+  if (value === "") return undefined;
+  if (field.type === "checkbox") return parseCheckboxValue(value);
+  if (field.type === "number") return Number.isFinite(Number(value)) ? Number(value) : undefined;
+  return value;
+}
+
 export class EditTaskModal extends Modal {
   constructor(app, plugin, task) {
     super(app);
@@ -204,6 +226,20 @@ export class CreateTaskModal extends Modal {
       status: plugin.settings.statuses[0] || "backlog",
       notification_unit: "days"
     }, initialValues);
+
+    for (const field of plugin.settings.customFields) {
+      if (field.type === "date-range") {
+        const range = parseDateRangeDefault(field.defaultValue);
+        if (range.start && this.values[`${field.id}_start`] === undefined) this.values[`${field.id}_start`] = range.start;
+        if (range.end && this.values[`${field.id}_end`] === undefined) this.values[`${field.id}_end`] = range.end;
+        continue;
+      }
+
+      const defaultValue = getDefaultFieldValue(field);
+      if (defaultValue !== undefined && this.values[field.id] === undefined) {
+        this.values[field.id] = defaultValue;
+      }
+    }
   }
 
   onOpen() {
@@ -285,6 +321,7 @@ export class CreateTaskModal extends Modal {
   renderDateTimeSetting(container, label, key) {
     const setting = new Setting(container).setName(label);
     const input = setting.controlEl.createEl("input", { type: "datetime-local" });
+    input.value = formatDateTimeForInput(this.values[key]);
     input.addEventListener("change", () => {
       this.values[key] = readDateInputAsIso(input.value);
     });
@@ -293,10 +330,12 @@ export class CreateTaskModal extends Modal {
   renderDateRangeSetting(container, label, startKey, endKey) {
     const setting = new Setting(container).setName(label);
     const start = setting.controlEl.createEl("input", { type: "date" });
+    start.value = formatDateForInput(this.values[startKey]);
     start.addEventListener("change", () => {
       this.values[startKey] = start.value;
     });
     const end = setting.controlEl.createEl("input", { type: "date" });
+    end.value = formatDateForInput(this.values[endKey]);
     end.addEventListener("change", () => {
       this.values[endKey] = end.value;
     });
@@ -329,9 +368,11 @@ export class CreateTaskModal extends Modal {
     const setting = new Setting(container).setName(field.name);
     if (field.type === "select") {
       setting.addDropdown((dropdown) => {
+        dropdown.addOption("", "None");
         for (const option of field.options.split(",").map((item) => item.trim()).filter(Boolean)) {
           dropdown.addOption(option, option);
         }
+        dropdown.setValue(this.values[field.id] || "");
         dropdown.onChange((value) => {
           this.values[field.id] = value;
         });
@@ -340,14 +381,23 @@ export class CreateTaskModal extends Modal {
     }
 
     if (field.type === "checkbox") {
-      setting.addToggle((toggle) => toggle.onChange((value) => {
-        this.values[field.id] = value;
-      }));
+      setting.addToggle((toggle) => toggle
+        .setValue(Boolean(this.values[field.id]))
+        .onChange((value) => {
+          this.values[field.id] = value;
+        }));
       return;
     }
 
     const inputType = field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : "text";
     const input = setting.controlEl.createEl("input", { type: inputType });
+    if (field.type === "datetime") {
+      input.value = formatDateTimeForInput(this.values[field.id]);
+    } else if (field.type === "date") {
+      input.value = formatDateForInput(this.values[field.id]);
+    } else {
+      input.value = this.values[field.id] === undefined ? "" : String(this.values[field.id]);
+    }
     input.addEventListener("change", () => {
       this.values[field.id] = field.type === "datetime" ? readDateInputAsIso(input.value) : input.value;
     });

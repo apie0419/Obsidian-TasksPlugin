@@ -43,36 +43,6 @@
   min-width: 0;
 }
 
-.frontmatter-kanban-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 280px;
-  max-width: 340px;
-  min-width: 180px;
-  height: 36px;
-  padding: 0 10px;
-  color: var(--text-muted);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-}
-
-.frontmatter-kanban-search svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-}
-
-.frontmatter-kanban-search input {
-  width: 100%;
-  min-width: 0;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
 .frontmatter-kanban-toolbar-actions,
 .frontmatter-kanban-toolbar-panels,
 .frontmatter-kanban-filter-header,
@@ -91,8 +61,7 @@
   flex-wrap: nowrap;
 }
 
-.frontmatter-kanban-toolbar-actions button,
-.frontmatter-kanban-column-add button {
+.frontmatter-kanban-toolbar-actions button {
   min-height: 34px;
   padding: 0 12px;
   display: inline-flex;
@@ -337,13 +306,6 @@
   background: rgba(255, 255, 255, 0.18);
 }
 
-.frontmatter-kanban-column-menu,
-.frontmatter-kanban-column-menu svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-}
-
 .frontmatter-kanban-cards {
   display: flex;
   flex-direction: column;
@@ -480,22 +442,6 @@
   border-radius: 8px;
 }
 
-.frontmatter-kanban-column-add {
-  padding: 0 10px 10px;
-}
-
-.frontmatter-kanban-column-add button {
-  width: 100%;
-  color: var(--interactive-accent);
-  background: transparent;
-  border: 1px dashed var(--background-modifier-border);
-}
-
-.frontmatter-kanban-column-add button:hover {
-  border-color: var(--kanban-column-accent);
-  background: color-mix(in srgb, var(--kanban-column-accent) 8%, transparent);
-}
-
 .frontmatter-kanban-modal .setting-item-control,
 .frontmatter-kanban-settings .setting-item-control {
   gap: 8px;
@@ -574,11 +520,6 @@
     align-items: stretch;
     flex-wrap: wrap;
     justify-content: flex-start;
-  }
-
-  .frontmatter-kanban-search {
-    max-width: none;
-    flex-basis: 100%;
   }
 
   .frontmatter-kanban-board {

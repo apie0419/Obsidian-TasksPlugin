@@ -22,13 +22,13 @@ import { formatDateLabel, formatDateTimeForInput, getWorkOnText } from "../utils
 import { setDropdownOptions } from "../utils/text";
 
 const COLUMN_ACCENTS = [
-  "#24345f",
-  "#3d6df2",
-  "#17a99b",
-  "#e49a2d",
-  "#2eaa62",
-  "#8b5cf6",
-  "#d14d72"
+  "#7d8b84",
+  "#8793ad",
+  "#86a39a",
+  "#b39a7c",
+  "#819f88",
+  "#9a8fa9",
+  "#b28c8c"
 ];
 
 export class KanbanView extends ItemView {
@@ -39,7 +39,6 @@ export class KanbanView extends ItemView {
     this.filterMode = "and";
     this.sortField = "due";
     this.sortDirection = "asc";
-    this.searchQuery = "";
     this.openToolbarPanel = null;
     this.cardClickTimer = null;
     this.suppressNextCardClick = false;
@@ -152,17 +151,6 @@ export class KanbanView extends ItemView {
 
     const controls = toolbar.createDiv({ cls: "frontmatter-kanban-toolbar-controls" });
 
-    const search = controls.createDiv({ cls: "frontmatter-kanban-search" });
-    const searchIcon = search.createSpan();
-    setIcon(searchIcon, "search");
-    const searchInput = search.createEl("input", { type: "search" });
-    searchInput.placeholder = "Search tasks...";
-    searchInput.value = this.searchQuery;
-    searchInput.addEventListener("input", () => {
-      this.searchQuery = searchInput.value;
-      this.refresh();
-    });
-
     const panels = controls.createDiv({ cls: "frontmatter-kanban-toolbar-panels" });
     this.renderToolbarPanel(panels, "sort", "arrow-up-down", "Sort", (body) => {
       body.createDiv({ cls: "frontmatter-kanban-popover-title", text: "Sort" });
@@ -201,14 +189,7 @@ export class KanbanView extends ItemView {
       filterCount ? String(filterCount) : ""
     );
 
-    const actions = controls.createDiv({ cls: "frontmatter-kanban-toolbar-actions" });
-
-    new ButtonComponent(actions)
-      .setIcon("refresh-cw")
-      .setTooltip("Refresh")
-      .onClick(() => this.refresh());
-
-    new ButtonComponent(actions)
+    new ButtonComponent(controls.createDiv({ cls: "frontmatter-kanban-toolbar-actions" }))
       .setIcon("plus")
       .setButtonText("New task")
       .setTooltip("New task")
@@ -581,8 +562,6 @@ export class KanbanView extends ItemView {
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
     title.createSpan({ text: status });
     title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(tasks.length) });
-    const menu = header.createSpan({ cls: "frontmatter-kanban-column-menu" });
-    setIcon(menu, "more-horizontal");
 
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
     cards.addEventListener("dragover", (event) => {
@@ -613,13 +592,6 @@ export class KanbanView extends ItemView {
     if (!tasks.length) {
       cards.createDiv({ cls: "frontmatter-kanban-column-empty", text: "No tasks" });
     }
-
-    const addTask = column.createDiv({ cls: "frontmatter-kanban-column-add" });
-    new ButtonComponent(addTask)
-      .setIcon("plus")
-      .setButtonText("Add task")
-      .setTooltip(`Add task to ${status}`)
-      .onClick(() => new CreateTaskModal(this.app, this.plugin, { status }).open());
   }
 
   renderCard(cards, task) {
@@ -709,31 +681,12 @@ export class KanbanView extends ItemView {
       });
     }
 
-    const query = this.searchQuery.trim().toLowerCase();
-    if (query) {
-      result = result.filter((task) => this.matchesSearch(task, query));
-    }
-
     const type = getFieldType(this.plugin, this.sortField);
     result.sort((a, b) => {
       const compared = compareValues(type, getFieldValue(a, this.sortField), getFieldValue(b, this.sortField));
       return this.sortDirection === "asc" ? compared : -compared;
     });
     return result;
-  }
-
-  matchesSearch(task, query) {
-    const fm = task.frontmatter;
-    const values = [
-      getTaskTitle(task),
-      task.file.basename,
-      fm.status,
-      fm.priority,
-      fm.description,
-      fm.summary,
-      fm.notes
-    ];
-    return values.some((value) => String(value || "").toLowerCase().includes(query));
   }
 
   matchesFilterGroup(task, group) {

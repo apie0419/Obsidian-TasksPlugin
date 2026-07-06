@@ -111,6 +111,7 @@ export class KanbanSettingTab extends PluginSettingTab {
       type.addOption(fieldType, fieldType);
     }
     const options = new TextComponent(add).setPlaceholder("Select options, comma separated");
+    const defaultValue = new TextComponent(add).setPlaceholder("Default value");
     const showInCreate = add.createEl("label", { cls: "frontmatter-kanban-inline-toggle" });
     const showInCreateInput = showInCreate.createEl("input", { type: "checkbox" });
     showInCreate.createSpan({ text: "Show in create form" });
@@ -134,6 +135,7 @@ export class KanbanSettingTab extends PluginSettingTab {
           name: fieldName,
           type: type.getValue(),
           options: options.getValue(),
+          defaultValue: defaultValue.getValue(),
           showInCreate: showInCreateInput.checked
         });
         await this.plugin.saveSettings();
@@ -152,6 +154,9 @@ export class KanbanSettingTab extends PluginSettingTab {
     const options = new TextComponent(row)
       .setPlaceholder("Select options")
       .setValue(field.options || "");
+    const defaultValue = new TextComponent(row)
+      .setPlaceholder("Default value")
+      .setValue(field.defaultValue || "");
     const showInCreate = row.createEl("label", { cls: "frontmatter-kanban-inline-toggle" });
     const showInCreateInput = showInCreate.createEl("input", { type: "checkbox" });
     showInCreateInput.checked = Boolean(field.showInCreate);
@@ -168,6 +173,7 @@ export class KanbanSettingTab extends PluginSettingTab {
         field.name = nextName;
         field.type = type.getValue();
         field.options = options.getValue();
+        field.defaultValue = defaultValue.getValue();
         field.showInCreate = showInCreateInput.checked;
         await this.plugin.saveSettings();
         this.display();

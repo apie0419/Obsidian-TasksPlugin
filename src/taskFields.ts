@@ -38,6 +38,7 @@ export function getFieldValue(task, fieldId) {
   if (fieldId === "title") return getTaskTitle(task);
   if (fieldId === "status") return fm.status || "";
   if (fieldId === "priority") return fm.priority || "";
+  if (fieldId === "priority_weight") return fm.priority_weight ?? getPriorityWeight(fm.priority);
   if (fieldId === "due") return fm.due || "";
   if (fieldId === "created") return fm.created || "";
   if (fieldId === "completed") return fm.completed || "";
@@ -65,6 +66,7 @@ export function getFieldType(plugin, fieldId) {
   if (fieldId === "title") return "text";
   if (fieldId === "status") return "select";
   if (fieldId === "priority") return "priority";
+  if (fieldId === "priority_weight") return "number";
   if (fieldId === "due") return "datetime";
   if (fieldId === "created") return "datetime";
   if (fieldId === "completed") return "datetime";
@@ -115,6 +117,7 @@ export function getBuiltInFields() {
     { id: "title", name: "Title", type: "text" },
     { id: "status", name: "Status", type: "select" },
     { id: "priority", name: "Priority", type: "priority" },
+    { id: "priority_weight", name: "Priority weight", type: "number" },
     { id: "due", name: "Due date", type: "datetime" },
     { id: "created", name: "Create date", type: "datetime" },
     { id: "completed", name: "Complete date", type: "datetime" },
