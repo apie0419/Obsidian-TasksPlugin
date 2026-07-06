@@ -1,4 +1,4 @@
-import { PRIORITY_WEIGHTS } from "../constants";
+import { PRIORITY_WEIGHTS, TASK_TAG } from "../constants";
 
 function formatPriorityWeightFormula() {
   const entries = Object.entries(PRIORITY_WEIGHTS);
@@ -9,9 +9,8 @@ function formatPriorityWeightFormula() {
 
 export function generateDefaultKanbanBase() {
   return `filters:
-  or:
-    - note["kanban_task"] == true
-    - note.status && note.status != ""
+  and:
+    - file.hasTag("${TASK_TAG}")
 formulas:
   priorityWeight: ${formatPriorityWeightFormula()}
   isOverdue: note.due && date(note.due) < today() && note.status != "done"

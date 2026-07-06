@@ -244,7 +244,7 @@
 
 .frontmatter-kanban-board {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--kanban-column-width, 260px), 1fr));
   gap: 14px;
   min-height: 0;
   overflow: auto;
@@ -445,6 +445,42 @@
 .frontmatter-kanban-modal .setting-item-control,
 .frontmatter-kanban-settings .setting-item-control {
   gap: 8px;
+}
+
+.frontmatter-kanban-task-info {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.frontmatter-kanban-task-info-title {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.frontmatter-kanban-task-info-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  line-height: 1.45;
+}
+
+.frontmatter-kanban-task-info-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.frontmatter-kanban-task-info-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .frontmatter-kanban-modal input[type="date"],

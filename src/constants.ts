@@ -2,6 +2,7 @@ export const BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
 export const DEFAULT_BASES_VIEW_FOLDER = "Views";
 export const DEFAULT_KANBAN_BASE_FILE = "kanban.base";
 export const DONE_STATUS = "done";
+export const TASK_TAG = "tasks";
 
 export const BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
 export const PRIORITIES = ["high", "medium", "easy", "low"];

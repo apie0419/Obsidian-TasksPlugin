@@ -15,7 +15,7 @@ export class KanbanSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
 
-    containerEl.createEl("h2", { text: "Frontmatter Kanban Board" });
+    containerEl.createEl("h2", { text: "Kanban Board" });
 
     new Setting(containerEl)
       .setName("Task folder")

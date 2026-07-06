@@ -5,6 +5,7 @@ import {
   DEFAULT_BASES_VIEW_FOLDER,
   DEFAULT_KANBAN_BASE_FILE,
   FIELD_TYPES,
+  TASK_TAG,
 } from "./constants";
 import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
 import { generateDefaultKanbanBase } from "./bases/defaultKanbanBase";
@@ -13,6 +14,7 @@ import { KanbanSettingTab } from "./settings/KanbanSettingTab";
 import { cleanStatus, dedupeStatuses, isDoneStatus, statusEquals } from "./status";
 import { getNotificationLeadMs, getPriorityWeight, getTaskTitle } from "./taskFields";
 import { formatTimestampForFileName, nowIso, toDate } from "./utils/date";
+import { ensureFrontmatterTag, hasFrontmatterTag } from "./utils/tags";
 import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
 
 export default class FrontmatterKanbanPlugin extends Plugin {
@@ -21,13 +23,13 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     this.registerBasesIntegration();
 
-    this.addRibbonIcon("kanban", "Open Kanban board", () => {
+    this.addRibbonIcon("kanban", "Open Kanban Board", () => {
       this.activateView();
     });
 
     this.addCommand({
       id: "open-frontmatter-kanban-board",
-      name: "Open Kanban board",
+      name: "Open Kanban Board",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "k" }],
       callback: () => this.activateView()
     });
@@ -53,6 +55,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     );
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1000));
 
+    await this.migrateLegacyTaskTags();
     this.syncCompletionDates();
     this.syncPriorityWeights();
     this.checkNotifications();
@@ -95,6 +98,12 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
+  async openTaskFile(file) {
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file, { active: true });
+    this.app.workspace.revealLeaf(leaf);
+  }
+
   registerBasesIntegration() {
     if (typeof this.registerBasesView !== "function") {
       new Notice("Obsidian Bases API is not available. Please update Obsidian and enable the Bases core plugin.");
@@ -102,7 +111,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
 
     const registered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
-      name: "Frontmatter Kanban",
+      name: "Kanban Board",
       icon: "kanban",
       factory: buildKanbanBasesViewFactory(this),
       options: () => [
@@ -119,7 +128,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     });
 
     if (!registered) {
-      new Notice("Enable the Bases core plugin to use Frontmatter Kanban views.");
+      new Notice("Enable the Bases core plugin to use Kanban Board views.");
     }
   }
 
@@ -131,11 +140,26 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   async ensureKanbanBaseFile() {
     const path = this.getKanbanBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) return existing;
+    if (existing instanceof TFile) {
+      await this.migrateKanbanBaseFile(existing);
+      return existing;
+    }
 
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
     return this.app.vault.create(path, generateDefaultKanbanBase());
+  }
+
+  async migrateKanbanBaseFile(file) {
+    const contents = await this.app.vault.cachedRead(file);
+    if (!contents.includes("kanban_task")) return;
+
+    const nextContents = contents.replace(
+      /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
+      `filters:\n  and:\n    - file.hasTag("${TASK_TAG}")`
+    );
+
+    await this.app.vault.modify(file, nextContents === contents ? generateDefaultKanbanBase() : nextContents);
   }
 
   refreshViews() {
@@ -146,16 +170,29 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
   }
 
-  getTaskFiles() {
+  getCandidateTaskFiles() {
     const folder = normalizePath(this.settings.taskFolder || "");
     return this.app.vault.getMarkdownFiles().filter((file) => {
       if (folder && !(file.path === folder || file.path.startsWith(`${folder}/`))) {
         return false;
       }
+      return true;
+    });
+  }
+
+  isLegacyTaskFrontmatter(frontmatter) {
+    return frontmatter && (frontmatter.kanban_task === true || frontmatter.kanban_task === "true");
+  }
+
+  isTaskFrontmatter(frontmatter) {
+    return Boolean(frontmatter && (hasFrontmatterTag(frontmatter, TASK_TAG) || this.isLegacyTaskFrontmatter(frontmatter)));
+  }
+
+  getTaskFiles() {
+    return this.getCandidateTaskFiles().filter((file) => {
       const cache = this.app.metadataCache.getFileCache(file);
       const frontmatter = cache && cache.frontmatter;
-      if (!frontmatter) return false;
-      return frontmatter.kanban_task === true || frontmatter.kanban_task === "true" || Boolean(frontmatter.status);
+      return this.isTaskFrontmatter(frontmatter);
     });
   }
 
@@ -182,7 +219,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const path = this.getNewTaskPath(folder, sanitizedTitle);
 
     const frontmatter = {
-      kanban_task: true,
+      tags: [TASK_TAG],
       title: values.title,
       status: values.status || this.settings.statuses[0] || "backlog",
       created: nowIso()
@@ -248,6 +285,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   async updateTaskStatus(file, status) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      ensureFrontmatterTag(frontmatter, TASK_TAG);
+      delete frontmatter.kanban_task;
       frontmatter.status = status;
       if (isDoneStatus(status)) {
         if (!frontmatter.completed) frontmatter.completed = nowIso();
@@ -289,6 +328,25 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     return true;
   }
 
+  async migrateLegacyTaskTags() {
+    if (this.legacyTaskTagMigrationRunning) return;
+    this.legacyTaskTagMigrationRunning = true;
+    try {
+      for (const file of this.getCandidateTaskFiles()) {
+        const cache = this.app.metadataCache.getFileCache(file);
+        const frontmatter = cache && cache.frontmatter;
+        if (!this.isLegacyTaskFrontmatter(frontmatter)) continue;
+
+        await this.app.fileManager.processFrontMatter(file, (nextFrontmatter) => {
+          ensureFrontmatterTag(nextFrontmatter, TASK_TAG);
+          delete nextFrontmatter.kanban_task;
+        });
+      }
+    } finally {
+      this.legacyTaskTagMigrationRunning = false;
+    }
+  }
+
   async removeStatus(status) {
     if (this.settings.statuses.length <= 1) {
       new Notice("At least one status is required.");
@@ -301,7 +359,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   async updateTask(file, values) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      frontmatter.kanban_task = true;
+      ensureFrontmatterTag(frontmatter, TASK_TAG);
+      delete frontmatter.kanban_task;
       frontmatter.title = values.title.trim();
       frontmatter.status = values.status || this.settings.statuses[0] || "backlog";
 

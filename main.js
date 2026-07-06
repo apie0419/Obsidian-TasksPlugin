@@ -31,6 +31,7 @@ var BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
 var DEFAULT_BASES_VIEW_FOLDER = "Views";
 var DEFAULT_KANBAN_BASE_FILE = "kanban.base";
 var DONE_STATUS = "done";
+var TASK_TAG = "tasks";
 var BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
 var PRIORITIES = ["high", "medium", "easy", "low"];
 var PRIORITY_WEIGHTS = {
@@ -209,6 +210,18 @@ function getDefaultFieldValue(field) {
   if (field.type === "number") return Number.isFinite(Number(value)) ? Number(value) : void 0;
   return value;
 }
+function formatTaskInfoDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).replace(/, (?=\d{2}:\d{2}$)/, " ");
+}
 var EditTaskModal = class extends import_obsidian.Modal {
   constructor(app, plugin, task) {
     var _a, _b;
@@ -243,6 +256,7 @@ var EditTaskModal = class extends import_obsidian.Modal {
     contentEl.empty();
     contentEl.addClass("frontmatter-kanban-modal");
     contentEl.createEl("h2", { text: "Edit task" });
+    this.renderTaskInfo(contentEl);
     new import_obsidian.Setting(contentEl).setName("Title").addText((text) => text.setPlaceholder("Task title").setValue(this.values.title).onChange((value) => {
       this.values.title = value;
     }));
@@ -275,7 +289,7 @@ var EditTaskModal = class extends import_obsidian.Modal {
     new import_obsidian.ButtonComponent(footer).setButtonText("Cancel").onClick(() => this.close());
     new import_obsidian.ButtonComponent(footer).setButtonText("Open note").onClick(() => {
       this.close();
-      this.app.workspace.getLeaf(false).openFile(this.task.file);
+      this.plugin.openTaskFile(this.task.file);
     });
     new import_obsidian.ButtonComponent(footer).setButtonText("Save").setCta().onClick(async () => {
       if (!this.values.title.trim()) {
@@ -285,6 +299,18 @@ var EditTaskModal = class extends import_obsidian.Modal {
       await this.plugin.updateTask(this.task.file, this.values);
       this.close();
     });
+  }
+  renderTaskInfo(container) {
+    const info = container.createDiv({ cls: "frontmatter-kanban-task-info" });
+    info.createDiv({ cls: "frontmatter-kanban-task-info-title", text: "Task information" });
+    this.renderTaskInfoRow(info, "Created", formatTaskInfoDate(this.task.frontmatter.created || this.task.file.stat.ctime));
+    this.renderTaskInfoRow(info, "Modified", formatTaskInfoDate(this.task.file.stat.mtime));
+    this.renderTaskInfoRow(info, "File", this.task.file.path);
+  }
+  renderTaskInfoRow(container, label, value) {
+    const row = container.createDiv({ cls: "frontmatter-kanban-task-info-row" });
+    row.createSpan({ cls: "frontmatter-kanban-task-info-label", text: `${label}:` });
+    row.createSpan({ cls: "frontmatter-kanban-task-info-value", text: value || "None" });
   }
   renderDateTimeSetting(container, label, key) {
     const setting = new import_obsidian.Setting(container).setName(label);
@@ -542,14 +568,10 @@ function valueToString(value) {
 function getEntryFile(entry) {
   return entry && entry.file instanceof import_obsidian2.TFile ? entry.file : null;
 }
-var KanbanBasesView = class extends import_obsidian2.Component {
+var KanbanBasesView = class extends import_obsidian2.BasesView {
   constructor(controller, containerEl, plugin) {
-    super();
+    super(controller);
     this.type = BASES_KANBAN_VIEW_TYPE;
-    this.app = null;
-    this.config = null;
-    this.data = null;
-    this.allProperties = [];
     this.controller = controller;
     this.containerEl = containerEl;
     this.plugin = plugin;
@@ -567,11 +589,17 @@ var KanbanBasesView = class extends import_obsidian2.Component {
     this.containerEl.addClass("frontmatter-kanban");
     this.containerEl.addClass("frontmatter-kanban-bases");
     const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
+    board.style.setProperty("--kanban-column-width", `${this.getColumnWidth()}px`);
     const groups = this.getGroups();
     for (let index = 0; index < groups.length; index += 1) {
       const group = groups[index];
       this.renderColumn(board, group.status, group.entries, index);
     }
+  }
+  getColumnWidth() {
+    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("columnWidth")) : 280;
+    if (!Number.isFinite(configured)) return 280;
+    return Math.min(420, Math.max(220, configured));
   }
   getGroups() {
     const groupedData = this.data && Array.isArray(this.data.groupedData) ? this.data.groupedData : [];
@@ -682,13 +710,14 @@ var KanbanBasesView = class extends import_obsidian2.Component {
         this.suppressNextCardClick = false;
       }, 80);
     });
-    this.registerDomEvent(card, "click", () => {
+    this.registerDomEvent(card, "click", (event) => {
       if (this.suppressNextCardClick) return;
+      if (event.detail > 1) return;
       if (this.cardClickTimer) window.clearTimeout(this.cardClickTimer);
       this.cardClickTimer = window.setTimeout(() => {
         this.cardClickTimer = null;
         new EditTaskModal(this.plugin.app, this.plugin, task).open();
-      }, 180);
+      }, 300);
     });
     this.registerDomEvent(card, "dblclick", (event) => {
       event.preventDefault();
@@ -696,7 +725,7 @@ var KanbanBasesView = class extends import_obsidian2.Component {
         window.clearTimeout(this.cardClickTimer);
         this.cardClickTimer = null;
       }
-      this.plugin.app.workspace.getLeaf(false).openFile(task.file);
+      this.plugin.openTaskFile(task.file);
     });
     card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
     const summary = this.getCardSummary(task);
@@ -745,9 +774,8 @@ function formatPriorityWeightFormula() {
 }
 function generateDefaultKanbanBase() {
   return `filters:
-  or:
-    - note["kanban_task"] == true
-    - note.status && note.status != ""
+  and:
+    - file.hasTag("${TASK_TAG}")
 formulas:
   priorityWeight: ${formatPriorityWeightFormula()}
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
@@ -801,7 +829,7 @@ var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
-    containerEl.createEl("h2", { text: "Frontmatter Kanban Board" });
+    containerEl.createEl("h2", { text: "Kanban Board" });
     new import_obsidian3.Setting(containerEl).setName("Task folder").setDesc("Markdown task notes are created and read from this folder.").addText((text) => text.setPlaceholder("Tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
       this.plugin.settings.taskFolder = value.trim() || "Tasks";
       await this.plugin.saveSettings();
@@ -936,17 +964,52 @@ var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
   }
 };
 
+// src/utils/tags.ts
+function normalizeTag(tag) {
+  return String(tag || "").trim().replace(/^#/, "");
+}
+function getFrontmatterTags(frontmatter) {
+  const tags = frontmatter && frontmatter.tags;
+  if (Array.isArray(tags)) {
+    return tags.map(normalizeTag).filter(Boolean);
+  }
+  if (typeof tags === "string") {
+    return tags.split(/[\s,]+/).map(normalizeTag).filter(Boolean);
+  }
+  return [];
+}
+function hasFrontmatterTag(frontmatter, tag) {
+  const expected = normalizeTag(tag).toLowerCase();
+  return getFrontmatterTags(frontmatter).some((item) => {
+    const normalized = normalizeTag(item).toLowerCase();
+    return normalized === expected || normalized.startsWith(`${expected}/`);
+  });
+}
+function ensureFrontmatterTag(frontmatter, tag) {
+  const normalizedTag = normalizeTag(tag);
+  if (!normalizedTag || hasFrontmatterTag(frontmatter, normalizedTag)) return;
+  if (Array.isArray(frontmatter.tags)) {
+    frontmatter.tags.push(normalizedTag);
+    return;
+  }
+  if (typeof frontmatter.tags === "string" && frontmatter.tags.trim()) {
+    frontmatter.tags = `${frontmatter.tags.trim()} ${normalizedTag}`;
+    return;
+  }
+  frontmatter.tags = [normalizedTag];
+}
+
 // src/plugin.ts
 var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
   async onload() {
     await this.loadSettings();
     this.registerBasesIntegration();
-    this.addRibbonIcon("kanban", "Open Kanban board", () => {
+    this.addRibbonIcon("kanban", "Open Kanban Board", () => {
       this.activateView();
     });
     this.addCommand({
       id: "open-frontmatter-kanban-board",
-      name: "Open Kanban board",
+      name: "Open Kanban Board",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "k" }],
       callback: () => this.activateView()
     });
@@ -968,6 +1031,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       this.app.vault.on("delete", () => this.refreshViews())
     );
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1e3));
+    await this.migrateLegacyTaskTags();
     this.syncCompletionDates();
     this.syncPriorityWeights();
     this.checkNotifications();
@@ -1007,13 +1071,18 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     await leaf.openFile(file);
     this.app.workspace.revealLeaf(leaf);
   }
+  async openTaskFile(file) {
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file, { active: true });
+    this.app.workspace.revealLeaf(leaf);
+  }
   registerBasesIntegration() {
     if (typeof this.registerBasesView !== "function") {
       new import_obsidian4.Notice("Obsidian Bases API is not available. Please update Obsidian and enable the Bases core plugin.");
       return;
     }
     const registered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
-      name: "Frontmatter Kanban",
+      name: "Kanban Board",
       icon: "kanban",
       factory: buildKanbanBasesViewFactory(this),
       options: () => [
@@ -1029,7 +1098,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       ]
     });
     if (!registered) {
-      new import_obsidian4.Notice("Enable the Bases core plugin to use Frontmatter Kanban views.");
+      new import_obsidian4.Notice("Enable the Bases core plugin to use Kanban Board views.");
     }
   }
   getKanbanBasePath() {
@@ -1039,10 +1108,24 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
   async ensureKanbanBaseFile() {
     const path = this.getKanbanBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof import_obsidian4.TFile) return existing;
+    if (existing instanceof import_obsidian4.TFile) {
+      await this.migrateKanbanBaseFile(existing);
+      return existing;
+    }
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
     return this.app.vault.create(path, generateDefaultKanbanBase());
+  }
+  async migrateKanbanBaseFile(file) {
+    const contents = await this.app.vault.cachedRead(file);
+    if (!contents.includes("kanban_task")) return;
+    const nextContents = contents.replace(
+      /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
+      `filters:
+  and:
+    - file.hasTag("${TASK_TAG}")`
+    );
+    await this.app.vault.modify(file, nextContents === contents ? generateDefaultKanbanBase() : nextContents);
   }
   refreshViews() {
     for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
@@ -1051,16 +1134,26 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       }
     }
   }
-  getTaskFiles() {
+  getCandidateTaskFiles() {
     const folder = (0, import_obsidian4.normalizePath)(this.settings.taskFolder || "");
     return this.app.vault.getMarkdownFiles().filter((file) => {
       if (folder && !(file.path === folder || file.path.startsWith(`${folder}/`))) {
         return false;
       }
+      return true;
+    });
+  }
+  isLegacyTaskFrontmatter(frontmatter) {
+    return frontmatter && (frontmatter.kanban_task === true || frontmatter.kanban_task === "true");
+  }
+  isTaskFrontmatter(frontmatter) {
+    return Boolean(frontmatter && (hasFrontmatterTag(frontmatter, TASK_TAG) || this.isLegacyTaskFrontmatter(frontmatter)));
+  }
+  getTaskFiles() {
+    return this.getCandidateTaskFiles().filter((file) => {
       const cache = this.app.metadataCache.getFileCache(file);
       const frontmatter = cache && cache.frontmatter;
-      if (!frontmatter) return false;
-      return frontmatter.kanban_task === true || frontmatter.kanban_task === "true" || Boolean(frontmatter.status);
+      return this.isTaskFrontmatter(frontmatter);
     });
   }
   async getTasks() {
@@ -1082,7 +1175,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     }
     const path = this.getNewTaskPath(folder, sanitizedTitle);
     const frontmatter = {
-      kanban_task: true,
+      tags: [TASK_TAG],
       title: values.title,
       status: values.status || this.settings.statuses[0] || "backlog",
       created: nowIso()
@@ -1146,6 +1239,8 @@ ${yaml}
   }
   async updateTaskStatus(file, status) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      ensureFrontmatterTag(frontmatter, TASK_TAG);
+      delete frontmatter.kanban_task;
       frontmatter.status = status;
       if (isDoneStatus(status)) {
         if (!frontmatter.completed) frontmatter.completed = nowIso();
@@ -1182,6 +1277,23 @@ ${yaml}
     this.refreshViews();
     return true;
   }
+  async migrateLegacyTaskTags() {
+    if (this.legacyTaskTagMigrationRunning) return;
+    this.legacyTaskTagMigrationRunning = true;
+    try {
+      for (const file of this.getCandidateTaskFiles()) {
+        const cache = this.app.metadataCache.getFileCache(file);
+        const frontmatter = cache && cache.frontmatter;
+        if (!this.isLegacyTaskFrontmatter(frontmatter)) continue;
+        await this.app.fileManager.processFrontMatter(file, (nextFrontmatter) => {
+          ensureFrontmatterTag(nextFrontmatter, TASK_TAG);
+          delete nextFrontmatter.kanban_task;
+        });
+      }
+    } finally {
+      this.legacyTaskTagMigrationRunning = false;
+    }
+  }
   async removeStatus(status) {
     if (this.settings.statuses.length <= 1) {
       new import_obsidian4.Notice("At least one status is required.");
@@ -1193,7 +1305,8 @@ ${yaml}
   }
   async updateTask(file, values) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      frontmatter.kanban_task = true;
+      ensureFrontmatterTag(frontmatter, TASK_TAG);
+      delete frontmatter.kanban_task;
       frontmatter.title = values.title.trim();
       frontmatter.status = values.status || this.settings.statuses[0] || "backlog";
       if (values.priority) {

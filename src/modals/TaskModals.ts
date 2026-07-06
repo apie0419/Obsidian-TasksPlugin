@@ -25,6 +25,19 @@ function getDefaultFieldValue(field) {
   return value;
 }
 
+function formatTaskInfoDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).replace(/, (?=\d{2}:\d{2}$)/, " ");
+}
+
 export class EditTaskModal extends Modal {
   constructor(app, plugin, task) {
     super(app);
@@ -60,6 +73,7 @@ export class EditTaskModal extends Modal {
     contentEl.empty();
     contentEl.addClass("frontmatter-kanban-modal");
     contentEl.createEl("h2", { text: "Edit task" });
+    this.renderTaskInfo(contentEl);
 
     new Setting(contentEl)
       .setName("Title")
@@ -111,7 +125,7 @@ export class EditTaskModal extends Modal {
       .setButtonText("Open note")
       .onClick(() => {
         this.close();
-        this.app.workspace.getLeaf(false).openFile(this.task.file);
+        this.plugin.openTaskFile(this.task.file);
       });
     new ButtonComponent(footer)
       .setButtonText("Save")
@@ -124,6 +138,21 @@ export class EditTaskModal extends Modal {
         await this.plugin.updateTask(this.task.file, this.values);
         this.close();
       });
+  }
+
+  renderTaskInfo(container) {
+    const info = container.createDiv({ cls: "frontmatter-kanban-task-info" });
+    info.createDiv({ cls: "frontmatter-kanban-task-info-title", text: "Task information" });
+
+    this.renderTaskInfoRow(info, "Created", formatTaskInfoDate(this.task.frontmatter.created || this.task.file.stat.ctime));
+    this.renderTaskInfoRow(info, "Modified", formatTaskInfoDate(this.task.file.stat.mtime));
+    this.renderTaskInfoRow(info, "File", this.task.file.path);
+  }
+
+  renderTaskInfoRow(container, label, value) {
+    const row = container.createDiv({ cls: "frontmatter-kanban-task-info-row" });
+    row.createSpan({ cls: "frontmatter-kanban-task-info-label", text: `${label}:` });
+    row.createSpan({ cls: "frontmatter-kanban-task-info-value", text: value || "None" });
   }
 
   renderDateTimeSetting(container, label, key) {

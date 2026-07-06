@@ -1,7 +1,7 @@
-import { ButtonComponent, Component, TFile, setIcon } from "obsidian";
-import type { BasesView, BasesViewFactory } from "obsidian";
+import { BasesView, TFile, setIcon } from "obsidian";
+import type { BasesViewFactory } from "obsidian";
 import { BASES_KANBAN_VIEW_TYPE } from "../constants";
-import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
+import { EditTaskModal } from "../modals/TaskModals";
 import { statusEquals } from "../status";
 import { getDueClass, getTaskTitle } from "../taskFields";
 import { formatDateLabel, formatDateTimeForInput, getWorkOnText } from "../utils/date";
@@ -26,15 +26,11 @@ function getEntryFile(entry) {
   return entry && entry.file instanceof TFile ? entry.file : null;
 }
 
-export class KanbanBasesView extends Component {
+export class KanbanBasesView extends BasesView {
   type = BASES_KANBAN_VIEW_TYPE;
-  app = null;
-  config = null;
-  data = null;
-  allProperties = [];
 
   constructor(controller, containerEl, plugin) {
-    super();
+    super(controller);
     this.controller = controller;
     this.containerEl = containerEl;
     this.plugin = plugin;
@@ -56,12 +52,21 @@ export class KanbanBasesView extends Component {
     this.containerEl.addClass("frontmatter-kanban-bases");
 
     const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
+    board.style.setProperty("--kanban-column-width", `${this.getColumnWidth()}px`);
     const groups = this.getGroups();
 
     for (let index = 0; index < groups.length; index += 1) {
       const group = groups[index];
       this.renderColumn(board, group.status, group.entries, index);
     }
+  }
+
+  getColumnWidth() {
+    const configured = this.config && typeof this.config.get === "function"
+      ? Number(this.config.get("columnWidth"))
+      : 280;
+    if (!Number.isFinite(configured)) return 280;
+    return Math.min(420, Math.max(220, configured));
   }
 
   getGroups() {
@@ -187,13 +192,14 @@ export class KanbanBasesView extends Component {
         this.suppressNextCardClick = false;
       }, 80);
     });
-    this.registerDomEvent(card, "click", () => {
+    this.registerDomEvent(card, "click", (event) => {
       if (this.suppressNextCardClick) return;
+      if (event.detail > 1) return;
       if (this.cardClickTimer) window.clearTimeout(this.cardClickTimer);
       this.cardClickTimer = window.setTimeout(() => {
         this.cardClickTimer = null;
         new EditTaskModal(this.plugin.app, this.plugin, task).open();
-      }, 180);
+      }, 300);
     });
     this.registerDomEvent(card, "dblclick", (event) => {
       event.preventDefault();
@@ -201,7 +207,7 @@ export class KanbanBasesView extends Component {
         window.clearTimeout(this.cardClickTimer);
         this.cardClickTimer = null;
       }
-      this.plugin.app.workspace.getLeaf(false).openFile(task.file);
+      this.plugin.openTaskFile(task.file);
     });
 
     card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
@@ -245,6 +251,6 @@ export class KanbanBasesView extends Component {
 
 export function buildKanbanBasesViewFactory(plugin): BasesViewFactory {
   return function (controller, containerEl): BasesView {
-    return new KanbanBasesView(controller, containerEl, plugin) as unknown as BasesView;
+    return new KanbanBasesView(controller, containerEl, plugin);
   };
 }
