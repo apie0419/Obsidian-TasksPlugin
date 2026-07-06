@@ -1,0 +1,42 @@
+import { PRIORITY_WEIGHTS } from "../constants";
+
+function formatPriorityWeightFormula() {
+  const entries = Object.entries(PRIORITY_WEIGHTS);
+  return entries.reduceRight((expression, [priority, weight]) => (
+    `if(note.priority == "${priority}", ${weight}, ${expression})`
+  ), "0");
+}
+
+export function generateDefaultKanbanBase() {
+  return `filters:
+  or:
+    - note["kanban_task"] == true
+    - note.status && note.status != ""
+formulas:
+  priorityWeight: ${formatPriorityWeightFormula()}
+  isOverdue: note.due && date(note.due) < today() && note.status != "done"
+  daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
+views:
+  - type: frontmatterKanban
+    name: Kanban Board
+    groupBy:
+      property: note.status
+      direction: ASC
+    order:
+      - note.status
+      - note.priority
+      - formula.priorityWeight
+      - note.due
+      - note.work_start
+      - note.work_end
+      - note.completed
+      - file.name
+    sort:
+      - property: formula.priorityWeight
+        direction: DESC
+      - property: note.due
+        direction: ASC
+    options:
+      columnWidth: 280
+`;
+}

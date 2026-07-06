@@ -1,0 +1,250 @@
+import { ButtonComponent, Component, TFile, setIcon } from "obsidian";
+import type { BasesView, BasesViewFactory } from "obsidian";
+import { BASES_KANBAN_VIEW_TYPE } from "../constants";
+import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
+import { statusEquals } from "../status";
+import { getDueClass, getTaskTitle } from "../taskFields";
+import { formatDateLabel, formatDateTimeForInput, getWorkOnText } from "../utils/date";
+
+const COLUMN_ACCENTS = [
+  "#7d8b84",
+  "#8793ad",
+  "#86a39a",
+  "#b39a7c",
+  "#819f88",
+  "#9a8fa9",
+  "#b28c8c"
+];
+
+function valueToString(value) {
+  if (!value) return "";
+  if (value.constructor && value.constructor.name === "NullValue") return "";
+  return String(value);
+}
+
+function getEntryFile(entry) {
+  return entry && entry.file instanceof TFile ? entry.file : null;
+}
+
+export class KanbanBasesView extends Component {
+  type = BASES_KANBAN_VIEW_TYPE;
+  app = null;
+  config = null;
+  data = null;
+  allProperties = [];
+
+  constructor(controller, containerEl, plugin) {
+    super();
+    this.controller = controller;
+    this.containerEl = containerEl;
+    this.plugin = plugin;
+    this.cardClickTimer = null;
+    this.suppressNextCardClick = false;
+  }
+
+  onload() {
+    this.render();
+  }
+
+  onDataUpdated() {
+    this.render();
+  }
+
+  render() {
+    this.containerEl.empty();
+    this.containerEl.addClass("frontmatter-kanban");
+    this.containerEl.addClass("frontmatter-kanban-bases");
+
+    const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
+    const groups = this.getGroups();
+
+    for (let index = 0; index < groups.length; index += 1) {
+      const group = groups[index];
+      this.renderColumn(board, group.status, group.entries, index);
+    }
+  }
+
+  getGroups() {
+    const groupedData = this.data && Array.isArray(this.data.groupedData)
+      ? this.data.groupedData
+      : [];
+
+    if (groupedData.length > 1 || (groupedData[0] && groupedData[0].hasKey && groupedData[0].hasKey())) {
+      return this.mergeConfiguredStatuses(groupedData.map((group) => ({
+        status: valueToString(group.key) || "No status",
+        entries: group.entries || []
+      })));
+    }
+
+    const entries = this.data && Array.isArray(this.data.data) ? this.data.data : [];
+    const groupsByStatus = new Map();
+    for (const entry of entries) {
+      const file = getEntryFile(entry);
+      const frontmatter = file ? this.getFrontmatter(file) : {};
+      const status = frontmatter.status || valueToString(entry.getValue && entry.getValue("note.status")) || "No status";
+      if (!groupsByStatus.has(status)) groupsByStatus.set(status, []);
+      groupsByStatus.get(status).push(entry);
+    }
+
+    return this.mergeConfiguredStatuses(Array.from(groupsByStatus.entries()).map(([status, statusEntries]) => ({
+      status,
+      entries: statusEntries
+    })));
+  }
+
+  mergeConfiguredStatuses(groups) {
+    const result = [];
+    const used = new Set();
+    for (const status of this.plugin.settings.statuses) {
+      const matching = groups.find((group) => statusEquals(group.status, status));
+      result.push({
+        status,
+        entries: matching ? matching.entries : []
+      });
+      used.add(status.toLowerCase());
+    }
+    for (const group of groups) {
+      if (used.has(String(group.status).toLowerCase())) continue;
+      result.push(group);
+    }
+    return result;
+  }
+
+  getFrontmatter(file) {
+    const cache = this.plugin.app.metadataCache.getFileCache(file);
+    return Object.assign({}, (cache && cache.frontmatter) || {});
+  }
+
+  entryToTask(entry) {
+    const file = getEntryFile(entry);
+    if (!file) return null;
+    const frontmatter = this.getFrontmatter(file);
+    delete frontmatter.position;
+    return { file, frontmatter, pluginSettings: this.plugin.settings };
+  }
+
+  renderColumn(board, status, entries, columnIndex) {
+    const column = board.createDiv({ cls: "frontmatter-kanban-column" });
+    column.dataset.status = status;
+    column.style.setProperty("--kanban-column-accent", COLUMN_ACCENTS[columnIndex % COLUMN_ACCENTS.length]);
+
+    const header = column.createDiv({ cls: "frontmatter-kanban-column-header" });
+    const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
+    title.createSpan({ text: status });
+    title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(entries.length) });
+
+    const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
+    this.registerDomEvent(cards, "dragover", (event) => {
+      event.preventDefault();
+      column.addClass("is-drag-target");
+      cards.addClass("is-drag-over");
+    });
+    this.registerDomEvent(cards, "dragleave", (event) => {
+      if (event.relatedTarget && cards.contains(event.relatedTarget)) return;
+      column.removeClass("is-drag-target");
+      cards.removeClass("is-drag-over");
+    });
+    this.registerDomEvent(cards, "drop", async (event) => {
+      event.preventDefault();
+      column.removeClass("is-drag-target");
+      cards.removeClass("is-drag-over");
+      const path = event.dataTransfer.getData("text/plain");
+      const file = this.plugin.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) {
+        await this.plugin.updateTaskStatus(file, status);
+      }
+    });
+
+    for (const entry of entries) {
+      const task = this.entryToTask(entry);
+      if (task) this.renderCard(cards, task);
+    }
+
+    if (!entries.length) {
+      cards.createDiv({ cls: "frontmatter-kanban-column-empty", text: "No tasks" });
+    }
+  }
+
+  renderCard(cards, task) {
+    const card = cards.createDiv({ cls: `frontmatter-kanban-card ${getDueClass(task)}` });
+    card.draggable = true;
+    this.registerDomEvent(card, "dragstart", (event) => {
+      if (!event.dataTransfer) return;
+      card.addClass("is-dragging");
+      event.dataTransfer.setData("text/plain", task.file.path);
+      event.dataTransfer.effectAllowed = "move";
+    });
+    this.registerDomEvent(card, "dragend", () => {
+      card.removeClass("is-dragging");
+      this.suppressNextCardClick = true;
+      this.containerEl.querySelectorAll(".frontmatter-kanban-cards.is-drag-over").forEach((element) => {
+        element.classList.remove("is-drag-over");
+      });
+      this.containerEl.querySelectorAll(".frontmatter-kanban-column.is-drag-target").forEach((element) => {
+        element.classList.remove("is-drag-target");
+      });
+      window.setTimeout(() => {
+        this.suppressNextCardClick = false;
+      }, 80);
+    });
+    this.registerDomEvent(card, "click", () => {
+      if (this.suppressNextCardClick) return;
+      if (this.cardClickTimer) window.clearTimeout(this.cardClickTimer);
+      this.cardClickTimer = window.setTimeout(() => {
+        this.cardClickTimer = null;
+        new EditTaskModal(this.plugin.app, this.plugin, task).open();
+      }, 180);
+    });
+    this.registerDomEvent(card, "dblclick", (event) => {
+      event.preventDefault();
+      if (this.cardClickTimer) {
+        window.clearTimeout(this.cardClickTimer);
+        this.cardClickTimer = null;
+      }
+      this.plugin.app.workspace.getLeaf(false).openFile(task.file);
+    });
+
+    card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+
+    const summary = this.getCardSummary(task);
+    if (summary) {
+      card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
+    }
+
+    const workOn = getWorkOnText(task.frontmatter);
+    if (task.frontmatter.priority || workOn) {
+      const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
+      if (task.frontmatter.priority) {
+        meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
+      }
+      if (workOn) {
+        meta.createSpan({ text: `Work ${workOn}` });
+      }
+    }
+
+    if (task.frontmatter.due || task.frontmatter.completed) {
+      const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
+      if (task.frontmatter.due) {
+        const due = footer.createSpan({ cls: "frontmatter-kanban-card-date" });
+        setIcon(due.createSpan(), "calendar");
+        due.createSpan({ text: formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ") });
+      }
+      if (task.frontmatter.completed) {
+        const completed = footer.createSpan({ cls: "frontmatter-kanban-card-date is-complete" });
+        setIcon(completed.createSpan(), "check-circle-2");
+        completed.createSpan({ text: formatDateLabel(task.frontmatter.completed) });
+      }
+    }
+  }
+
+  getCardSummary(task) {
+    const fm = task.frontmatter;
+    return String(fm.description || fm.summary || fm.notes || "").trim();
+  }
+}
+
+export function buildKanbanBasesViewFactory(plugin): BasesViewFactory {
+  return function (controller, containerEl): BasesView {
+    return new KanbanBasesView(controller, containerEl, plugin) as unknown as BasesView;
+  };
+}

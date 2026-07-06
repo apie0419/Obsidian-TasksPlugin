@@ -1,4 +1,6 @@
-export const VIEW_TYPE_KANBAN = "frontmatter-kanban-board-view";
+export const BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
+export const DEFAULT_BASES_VIEW_FOLDER = "Views";
+export const DEFAULT_KANBAN_BASE_FILE = "kanban.base";
 export const DONE_STATUS = "done";
 
 export const BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];

@@ -27,7 +27,9 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian4 = require("obsidian");
 
 // src/constants.ts
-var VIEW_TYPE_KANBAN = "frontmatter-kanban-board-view";
+var BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
+var DEFAULT_BASES_VIEW_FOLDER = "Views";
+var DEFAULT_KANBAN_BASE_FILE = "kanban.base";
 var DONE_STATUS = "done";
 var BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
 var PRIORITIES = ["high", "medium", "easy", "low"];
@@ -59,8 +61,37 @@ var FIELD_TYPES = [
   "checkbox"
 ];
 
-// src/views/KanbanView.ts
+// src/bases/KanbanBasesView.ts
 var import_obsidian2 = require("obsidian");
+
+// src/modals/TaskModals.ts
+var import_obsidian = require("obsidian");
+
+// src/status.ts
+function cleanStatus(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+function getStatusKey(value) {
+  return cleanStatus(value).toLowerCase();
+}
+function statusEquals(left, right) {
+  return getStatusKey(left) === getStatusKey(right);
+}
+function isDoneStatus(status) {
+  return statusEquals(status, DONE_STATUS);
+}
+function dedupeStatuses(statuses) {
+  const seen = /* @__PURE__ */ new Set();
+  const result = [];
+  for (const status of statuses) {
+    const cleaned = cleanStatus(status);
+    const key = getStatusKey(cleaned);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(cleaned);
+  }
+  return result;
+}
 
 // src/utils/date.ts
 function nowIso() {
@@ -104,199 +135,12 @@ function readDateInputAsIso(value) {
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString();
 }
-function dateOnly(value) {
-  const date = toDate(value);
-  if (!date) return "";
-  return date.toISOString().slice(0, 10);
-}
 function getWorkOnText(frontmatter) {
   const start = frontmatter.work_start || "";
   const end = frontmatter.work_end || "";
   if (!start && !end) return "";
   if (start && end) return `${start} - ${end}`;
   return start || end;
-}
-
-// src/dateFilters.ts
-var DATE_FILTER_MODES = [
-  ["fixed", "Exact"],
-  ["relative", "Relative"],
-  ["formula", "Formula"]
-];
-var RELATIVE_DATE_UNITS = [
-  ["minutes", "minutes"],
-  ["hours", "hours"],
-  ["days", "days"],
-  ["weeks", "weeks"],
-  ["months", "months"],
-  ["years", "years"]
-];
-var RELATIVE_DATE_DIRECTIONS = [
-  ["ago", "ago"],
-  ["from_now", "from now"]
-];
-function startOfDay(date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-function endOfDay(date) {
-  const next = new Date(date);
-  next.setHours(23, 59, 59, 999);
-  return next;
-}
-function startOfWeek(date) {
-  const next = startOfDay(date);
-  const day = next.getDay();
-  const distanceFromMonday = (day + 6) % 7;
-  next.setDate(next.getDate() - distanceFromMonday);
-  return next;
-}
-function endOfWeek(date) {
-  const next = startOfWeek(date);
-  next.setDate(next.getDate() + 6);
-  return endOfDay(next);
-}
-function startOfMonth(date) {
-  const next = startOfDay(date);
-  next.setDate(1);
-  return next;
-}
-function endOfMonth(date) {
-  const next = startOfMonth(date);
-  next.setMonth(next.getMonth() + 1);
-  next.setDate(0);
-  return endOfDay(next);
-}
-function startOfYear(date) {
-  const next = startOfDay(date);
-  next.setMonth(0, 1);
-  return next;
-}
-function endOfYear(date) {
-  const next = startOfYear(date);
-  next.setFullYear(next.getFullYear() + 1);
-  next.setDate(0);
-  return endOfDay(next);
-}
-function normalizeFormulaToken(value) {
-  return String(value || "").toLowerCase().replace(/[\s_-]+/g, "");
-}
-function resolveFormulaBase(token, now) {
-  const normalized = normalizeFormulaToken(token);
-  if (normalized === "now") return new Date(now);
-  if (normalized === "today") return startOfDay(now);
-  if (normalized === "tomorrow") {
-    const next = startOfDay(now);
-    next.setDate(next.getDate() + 1);
-    return next;
-  }
-  if (normalized === "yesterday") {
-    const next = startOfDay(now);
-    next.setDate(next.getDate() - 1);
-    return next;
-  }
-  if (normalized === "startofweek") return startOfWeek(now);
-  if (normalized === "endofweek") return endOfWeek(now);
-  if (normalized === "startofmonth") return startOfMonth(now);
-  if (normalized === "endofmonth") return endOfMonth(now);
-  if (normalized === "startofyear") return startOfYear(now);
-  if (normalized === "endofyear") return endOfYear(now);
-  return null;
-}
-function normalizeUnit(unit) {
-  const normalized = normalizeFormulaToken(unit);
-  if (["m", "min", "mins", "minute", "minutes"].includes(normalized)) return "minutes";
-  if (["h", "hr", "hrs", "hour", "hours"].includes(normalized)) return "hours";
-  if (["d", "day", "days"].includes(normalized)) return "days";
-  if (["w", "week", "weeks"].includes(normalized)) return "weeks";
-  if (["mo", "mon", "month", "months"].includes(normalized)) return "months";
-  if (["y", "yr", "yrs", "year", "years"].includes(normalized)) return "years";
-  return "";
-}
-function addDateUnit(date, amount, unit) {
-  const next = new Date(date);
-  if (unit === "minutes") next.setMinutes(next.getMinutes() + amount);
-  if (unit === "hours") next.setHours(next.getHours() + amount);
-  if (unit === "days") next.setDate(next.getDate() + amount);
-  if (unit === "weeks") next.setDate(next.getDate() + amount * 7);
-  if (unit === "months") next.setMonth(next.getMonth() + amount);
-  if (unit === "years") next.setFullYear(next.getFullYear() + amount);
-  return next;
-}
-function resolveRelativeDate(amount, unit, direction, now = /* @__PURE__ */ new Date()) {
-  const parsedAmount = Number(amount);
-  const normalizedUnit = normalizeUnit(unit || "days");
-  if (!Number.isFinite(parsedAmount) || parsedAmount < 0 || !normalizedUnit) return null;
-  const signedAmount = direction === "ago" ? -parsedAmount : parsedAmount;
-  return addDateUnit(now, signedAmount, normalizedUnit);
-}
-function resolveDateFormula(expression, now = /* @__PURE__ */ new Date()) {
-  const raw = String(expression || "").trim();
-  if (!raw) return null;
-  const direct = toDate(raw);
-  if (direct) return direct;
-  const baseMatch = raw.match(/^(now|today|tomorrow|yesterday|start[\s_-]*of[\s_-]*week|end[\s_-]*of[\s_-]*week|start[\s_-]*of[\s_-]*month|end[\s_-]*of[\s_-]*month|start[\s_-]*of[\s_-]*year|end[\s_-]*of[\s_-]*year)\b/i);
-  if (!baseMatch) return null;
-  let date = resolveFormulaBase(baseMatch[1], now);
-  if (!date) return null;
-  let rest = raw.slice(baseMatch[0].length);
-  while (rest.trim()) {
-    const offsetMatch = rest.match(/^\s*([+-])\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]+)\b/);
-    if (!offsetMatch) return null;
-    const sign = offsetMatch[1] === "-" ? -1 : 1;
-    const amount = Number(offsetMatch[2]) * sign;
-    const unit = normalizeUnit(offsetMatch[3]);
-    if (!unit) return null;
-    date = addDateUnit(date, amount, unit);
-    rest = rest.slice(offsetMatch[0].length);
-  }
-  return date;
-}
-function getDateFilterMode(filter) {
-  if (filter.dateMode === "relative" || filter.dateMode === "formula") return filter.dateMode;
-  return "fixed";
-}
-function resolveDateFilterValue(filter) {
-  var _a;
-  const mode = getDateFilterMode(filter);
-  if (mode === "relative") {
-    return resolveRelativeDate(
-      (_a = filter.relativeAmount) != null ? _a : 0,
-      filter.relativeUnit || "days",
-      filter.relativeDirection || "from_now"
-    );
-  }
-  if (mode === "formula") {
-    return resolveDateFormula(filter.formula || filter.value);
-  }
-  return toDate(filter.value);
-}
-
-// src/status.ts
-function cleanStatus(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-function getStatusKey(value) {
-  return cleanStatus(value).toLowerCase();
-}
-function statusEquals(left, right) {
-  return getStatusKey(left) === getStatusKey(right);
-}
-function isDoneStatus(status) {
-  return statusEquals(status, DONE_STATUS);
-}
-function dedupeStatuses(statuses) {
-  const seen = /* @__PURE__ */ new Set();
-  const result = [];
-  for (const status of statuses) {
-    const cleaned = cleanStatus(status);
-    const key = getStatusKey(cleaned);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    result.push(cleaned);
-  }
-  return result;
 }
 
 // src/taskFields.ts
@@ -327,80 +171,6 @@ function getDueClass(task) {
   if (diffDays <= 7) return "is-due-yellow";
   return "";
 }
-function getFieldValue(task, fieldId) {
-  var _a, _b, _c;
-  const fm = task.frontmatter;
-  if (fieldId === "title") return getTaskTitle(task);
-  if (fieldId === "status") return fm.status || "";
-  if (fieldId === "priority") return fm.priority || "";
-  if (fieldId === "priority_weight") return (_a = fm.priority_weight) != null ? _a : getPriorityWeight(fm.priority);
-  if (fieldId === "due") return fm.due || "";
-  if (fieldId === "created") return fm.created || "";
-  if (fieldId === "completed") return fm.completed || "";
-  if (fieldId === "work_on") return {
-    start: fm.work_start || "",
-    end: fm.work_end || ""
-  };
-  if (fieldId === "notification") return {
-    amount: (_b = fm.notification_amount) != null ? _b : "",
-    unit: (_c = fm.notification_unit) != null ? _c : ""
-  };
-  const customField = task.pluginSettings && task.pluginSettings.customFields ? task.pluginSettings.customFields.find((field) => field.id === fieldId) : null;
-  if (customField && customField.type === "date-range") {
-    return {
-      start: fm[`${fieldId}_start`] || "",
-      end: fm[`${fieldId}_end`] || ""
-    };
-  }
-  return fm[fieldId];
-}
-function getFieldType(plugin, fieldId) {
-  if (fieldId === "title") return "text";
-  if (fieldId === "status") return "select";
-  if (fieldId === "priority") return "priority";
-  if (fieldId === "priority_weight") return "number";
-  if (fieldId === "due") return "datetime";
-  if (fieldId === "created") return "datetime";
-  if (fieldId === "completed") return "datetime";
-  if (fieldId === "work_on") return "date-range";
-  if (fieldId === "notification") return "notification";
-  const custom = plugin.settings.customFields.find((field) => field.id === fieldId);
-  return custom ? custom.type : "text";
-}
-function compareValues(type, a, b) {
-  if (type === "priority") {
-    return getPriorityWeight(a) - getPriorityWeight(b);
-  }
-  if (type === "notification") {
-    return notificationValueToMs(a) - notificationValueToMs(b);
-  }
-  if (type === "number") {
-    const left = Number(a);
-    const right = Number(b);
-    return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0);
-  }
-  if (type === "date" || type === "datetime") {
-    const left = toDate(a);
-    const right = toDate(b);
-    return (left ? left.getTime() : 0) - (right ? right.getTime() : 0);
-  }
-  if (type === "date-range") {
-    const left = toDate(a && a.start);
-    const right = toDate(b && b.start);
-    return (left ? left.getTime() : 0) - (right ? right.getTime() : 0);
-  }
-  if (type === "checkbox") {
-    return Number(Boolean(a)) - Number(Boolean(b));
-  }
-  return String(a || "").localeCompare(String(b || ""));
-}
-function notificationValueToMs(value) {
-  if (!value || !value.amount || !value.unit) return 0;
-  return getNotificationLeadMs({
-    notification_amount: value.amount,
-    notification_unit: value.unit
-  }) || 0;
-}
 function getBuiltInFields() {
   return [
     { id: "title", name: "Title", type: "text" },
@@ -417,136 +187,8 @@ function getBuiltInFields() {
 function getAllFieldDefinitions(plugin) {
   return [...getBuiltInFields(), ...plugin.settings.customFields];
 }
-function getOperatorsForType(type) {
-  if (type === "number") {
-    return [
-      ["equals", "="],
-      ["not_equals", "!="],
-      ["greater_than", ">"],
-      ["less_than", "<"],
-      ["is_empty", "is empty"],
-      ["not_empty", "is not empty"]
-    ];
-  }
-  if (type === "date" || type === "datetime") {
-    return [
-      ["on", "on"],
-      ["before", "before"],
-      ["after", "after"],
-      ["is_empty", "is empty"],
-      ["not_empty", "is not empty"]
-    ];
-  }
-  if (type === "date-range") {
-    return [
-      ["contains_date", "contains date"],
-      ["overlaps", "overlaps"],
-      ["is_empty", "is empty"],
-      ["not_empty", "is not empty"]
-    ];
-  }
-  if (type === "select" || type === "priority") {
-    return [
-      ["equals", "="],
-      ["not_equals", "!="],
-      ["is_empty", "is empty"],
-      ["not_empty", "is not empty"]
-    ];
-  }
-  if (type === "checkbox") {
-    return [
-      ["equals", "is"],
-      ["is_empty", "is empty"],
-      ["not_empty", "is not empty"]
-    ];
-  }
-  if (type === "notification") {
-    return [
-      ["is_empty", "is empty"],
-      ["not_empty", "is not empty"]
-    ];
-  }
-  return [
-    ["contains", "contains"],
-    ["equals", "="],
-    ["not_equals", "!="],
-    ["is_empty", "is empty"],
-    ["not_empty", "is not empty"]
-  ];
-}
-function isEmptyValue(value, type) {
-  if (type === "date-range") {
-    return !value || !value.start && !value.end;
-  }
-  if (type === "notification") {
-    return !value || !value.amount && !value.unit;
-  }
-  return value === void 0 || value === null || value === "";
-}
-
-// src/filters.ts
-function matchesFilter(task, filter, plugin) {
-  const type = getFieldType(plugin, filter.field);
-  const value = getFieldValue(task, filter.field);
-  if (filter.operator === "is_empty") return isEmptyValue(value, type);
-  if (filter.operator === "not_empty") return !isEmptyValue(value, type);
-  if (type === "number") {
-    const left2 = Number(value);
-    const right2 = Number(filter.value);
-    if (!Number.isFinite(left2) || !Number.isFinite(right2)) return false;
-    if (filter.operator === "equals") return left2 === right2;
-    if (filter.operator === "not_equals") return left2 !== right2;
-    if (filter.operator === "greater_than") return left2 > right2;
-    if (filter.operator === "less_than") return left2 < right2;
-    return false;
-  }
-  if (type === "date" || type === "datetime") {
-    const left2 = toDate(value);
-    const right2 = resolveDateFilterValue(filter);
-    if (!left2 || !right2) return false;
-    if (filter.operator === "on") return dateOnly(left2) === dateOnly(right2);
-    if (filter.operator === "before") return left2.getTime() < right2.getTime();
-    if (filter.operator === "after") return left2.getTime() > right2.getTime();
-    return false;
-  }
-  if (type === "date-range") {
-    const start = toDate(value && value.start);
-    const end = toDate(value && value.end);
-    if (filter.operator === "contains_date") {
-      const target = resolveDateFilterValue(filter);
-      if (!target || !start && !end) return false;
-      const targetTime = target.getTime();
-      const startTime = start ? start.getTime() : Number.NEGATIVE_INFINITY;
-      const endTime = end ? end.getTime() : Number.POSITIVE_INFINITY;
-      return targetTime >= startTime && targetTime <= endTime;
-    }
-    if (filter.operator === "overlaps") {
-      const filterStart = toDate(filter.valueStart);
-      const filterEnd = toDate(filter.valueEnd);
-      if (!start && !end || !filterStart && !filterEnd) return false;
-      const leftStart = start ? start.getTime() : Number.NEGATIVE_INFINITY;
-      const leftEnd = end ? end.getTime() : Number.POSITIVE_INFINITY;
-      const rightStart = filterStart ? filterStart.getTime() : Number.NEGATIVE_INFINITY;
-      const rightEnd = filterEnd ? filterEnd.getTime() : Number.POSITIVE_INFINITY;
-      return leftStart <= rightEnd && rightStart <= leftEnd;
-    }
-    return false;
-  }
-  if (type === "checkbox") {
-    const expected = filter.value === "true";
-    if (filter.operator === "equals") return Boolean(value) === expected;
-    return false;
-  }
-  const left = String(value || "").toLowerCase();
-  const right = String(filter.value || "").toLowerCase();
-  if (filter.operator === "contains") return left.includes(right);
-  if (filter.operator === "equals") return left === right;
-  if (filter.operator === "not_equals") return left !== right;
-  return false;
-}
 
 // src/modals/TaskModals.ts
-var import_obsidian = require("obsidian");
 function parseCheckboxValue(value) {
   if (value === true || value === false) return value;
   const normalized = String(value || "").trim().toLowerCase();
@@ -882,22 +524,7 @@ var CreateTaskModal = class extends import_obsidian.Modal {
   }
 };
 
-// src/utils/text.ts
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-function sanitizeFileName(title) {
-  return title.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
-}
-function normalizeFieldId(value) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
-}
-function setDropdownOptions(dropdown, options) {
-  dropdown.selectEl.empty();
-  options.forEach(([value, label]) => dropdown.addOption(value, label));
-}
-
-// src/views/KanbanView.ts
+// src/bases/KanbanBasesView.ts
 var COLUMN_ACCENTS = [
   "#7d8b84",
   "#8793ad",
@@ -907,496 +534,142 @@ var COLUMN_ACCENTS = [
   "#9a8fa9",
   "#b28c8c"
 ];
-var KanbanView = class extends import_obsidian2.ItemView {
-  constructor(leaf, plugin) {
-    super(leaf);
+function valueToString(value) {
+  if (!value) return "";
+  if (value.constructor && value.constructor.name === "NullValue") return "";
+  return String(value);
+}
+function getEntryFile(entry) {
+  return entry && entry.file instanceof import_obsidian2.TFile ? entry.file : null;
+}
+var KanbanBasesView = class extends import_obsidian2.Component {
+  constructor(controller, containerEl, plugin) {
+    super();
+    this.type = BASES_KANBAN_VIEW_TYPE;
+    this.app = null;
+    this.config = null;
+    this.data = null;
+    this.allProperties = [];
+    this.controller = controller;
+    this.containerEl = containerEl;
     this.plugin = plugin;
-    this.filterGroups = [{ mode: "and", filters: [] }];
-    this.filterMode = "and";
-    this.sortField = "due";
-    this.sortDirection = "asc";
-    this.openToolbarPanel = null;
     this.cardClickTimer = null;
     this.suppressNextCardClick = false;
   }
-  getViewType() {
-    return VIEW_TYPE_KANBAN;
+  onload() {
+    this.render();
   }
-  getDisplayText() {
-    return "Kanban Board";
+  onDataUpdated() {
+    this.render();
   }
-  getIcon() {
-    return "kanban";
-  }
-  async onOpen() {
-    this.registerDomEvent(document, "mousedown", (event) => this.closeToolbarPanelsOnOutsideClick(event));
-    this.registerDomEvent(document, "keydown", (event) => {
-      if (event.key === "Escape") this.closeToolbarPanels();
-    });
-    await this.refresh();
-  }
-  closeToolbarPanelsOnOutsideClick(event) {
-    if (!this.openToolbarPanel) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest(".frontmatter-kanban-toolbar-popover")) return;
-    this.closeToolbarPanels();
-  }
-  closeToolbarPanels() {
-    this.openToolbarPanel = null;
-    this.containerEl.querySelectorAll(".frontmatter-kanban-toolbar-popover[open]").forEach((panel) => {
-      panel.open = false;
-    });
-  }
-  getFilterGroups() {
-    if (!Array.isArray(this.filterGroups) || !this.filterGroups.length) {
-      this.filterGroups = [{ mode: this.filterMode || "and", filters: [] }];
+  render() {
+    this.containerEl.empty();
+    this.containerEl.addClass("frontmatter-kanban");
+    this.containerEl.addClass("frontmatter-kanban-bases");
+    const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
+    const groups = this.getGroups();
+    for (let index = 0; index < groups.length; index += 1) {
+      const group = groups[index];
+      this.renderColumn(board, group.status, group.entries, index);
     }
-    return this.filterGroups;
   }
-  getFilterCount() {
-    return this.getFilterGroups().reduce((count, group) => count + this.getFilterNodeCount(group), 0);
+  getGroups() {
+    const groupedData = this.data && Array.isArray(this.data.groupedData) ? this.data.groupedData : [];
+    if (groupedData.length > 1 || groupedData[0] && groupedData[0].hasKey && groupedData[0].hasKey()) {
+      return this.mergeConfiguredStatuses(groupedData.map((group) => ({
+        status: valueToString(group.key) || "No status",
+        entries: group.entries || []
+      })));
+    }
+    const entries = this.data && Array.isArray(this.data.data) ? this.data.data : [];
+    const groupsByStatus = /* @__PURE__ */ new Map();
+    for (const entry of entries) {
+      const file = getEntryFile(entry);
+      const frontmatter = file ? this.getFrontmatter(file) : {};
+      const status = frontmatter.status || valueToString(entry.getValue && entry.getValue("note.status")) || "No status";
+      if (!groupsByStatus.has(status)) groupsByStatus.set(status, []);
+      groupsByStatus.get(status).push(entry);
+    }
+    return this.mergeConfiguredStatuses(Array.from(groupsByStatus.entries()).map(([status, statusEntries]) => ({
+      status,
+      entries: statusEntries
+    })));
   }
-  getFilterNodeCount(node) {
-    if (!this.isFilterGroupNode(node)) return 1;
-    return this.getGroupChildren(node).reduce((count, child) => count + this.getFilterNodeCount(child), 0);
-  }
-  getGroupChildren(group) {
-    if (!Array.isArray(group.filters)) group.filters = [];
-    return group.filters;
-  }
-  isFilterGroupNode(node) {
-    return Boolean(node && Array.isArray(node.filters) && !node.field);
-  }
-  createDefaultFilter() {
-    const firstField = getAllFieldDefinitions(this.plugin)[0];
-    return {
-      field: firstField.id,
-      operator: getOperatorsForType(firstField.type)[0][0],
-      value: ""
-    };
-  }
-  createDefaultGroup() {
-    return {
-      type: "group",
-      mode: "and",
-      filters: [this.createDefaultFilter()]
-    };
-  }
-  async refresh() {
-    const container = this.containerEl.children[1];
-    container.empty();
-    container.addClass("frontmatter-kanban");
-    const allTasks = await this.plugin.getTasks();
-    const tasks = this.applySortAndFilters(allTasks);
-    const toolbar = container.createDiv({ cls: "frontmatter-kanban-toolbar" });
-    this.renderToolbar(toolbar, allTasks.length, tasks.length);
-    const board = container.createDiv({ cls: "frontmatter-kanban-board" });
-    for (let index = 0; index < this.plugin.settings.statuses.length; index += 1) {
-      const status = this.plugin.settings.statuses[index];
-      this.renderColumn(
-        board,
+  mergeConfiguredStatuses(groups) {
+    const result = [];
+    const used = /* @__PURE__ */ new Set();
+    for (const status of this.plugin.settings.statuses) {
+      const matching = groups.find((group) => statusEquals(group.status, status));
+      result.push({
         status,
-        tasks.filter((task) => statusEquals(task.frontmatter.status || "", status)),
-        index
-      );
+        entries: matching ? matching.entries : []
+      });
+      used.add(status.toLowerCase());
     }
+    for (const group of groups) {
+      if (used.has(String(group.status).toLowerCase())) continue;
+      result.push(group);
+    }
+    return result;
   }
-  renderToolbar(toolbar, totalTasks, visibleTasks) {
-    const title = toolbar.createDiv({ cls: "frontmatter-kanban-toolbar-title" });
-    title.createEl("h2", { text: "Kanban Board" });
-    title.createSpan({ text: `${visibleTasks} / ${totalTasks} tasks` });
-    const controls = toolbar.createDiv({ cls: "frontmatter-kanban-toolbar-controls" });
-    const panels = controls.createDiv({ cls: "frontmatter-kanban-toolbar-panels" });
-    this.renderToolbarPanel(panels, "sort", "arrow-up-down", "Sort", (body) => {
-      body.createDiv({ cls: "frontmatter-kanban-popover-title", text: "Sort" });
-      const sortWrap = body.createDiv({ cls: "frontmatter-kanban-sort" });
-      sortWrap.createSpan({ text: "Field" });
-      const sortField = new import_obsidian2.DropdownComponent(sortWrap);
-      for (const field of getAllFieldDefinitions(this.plugin)) {
-        sortField.addOption(field.id, field.name);
-      }
-      sortField.setValue(this.sortField);
-      sortField.onChange((value) => {
-        this.openToolbarPanel = "sort";
-        this.sortField = value;
-        this.refresh();
-      });
-      sortWrap.createSpan({ text: "Order" });
-      const sortDirection = new import_obsidian2.DropdownComponent(sortWrap);
-      sortDirection.addOption("asc", "Asc");
-      sortDirection.addOption("desc", "Desc");
-      sortDirection.setValue(this.sortDirection);
-      sortDirection.onChange((value) => {
-        this.openToolbarPanel = "sort";
-        this.sortDirection = value;
-        this.refresh();
-      });
-    });
-    const filterCount = this.getFilterCount();
-    this.renderToolbarPanel(
-      panels,
-      "filters",
-      "list-filter",
-      filterCount ? `Filters (${filterCount})` : "Filters",
-      (body) => this.renderFiltersPanel(body),
-      filterCount ? String(filterCount) : ""
-    );
-    new import_obsidian2.ButtonComponent(controls.createDiv({ cls: "frontmatter-kanban-toolbar-actions" })).setIcon("plus").setButtonText("New task").setTooltip("New task").setCta().onClick(() => new CreateTaskModal(this.app, this.plugin).open());
+  getFrontmatter(file) {
+    const cache = this.plugin.app.metadataCache.getFileCache(file);
+    return Object.assign({}, cache && cache.frontmatter || {});
   }
-  renderFiltersPanel(body) {
-    const filters = body.createDiv({ cls: "frontmatter-kanban-filters" });
-    const filterHeader = filters.createDiv({ cls: "frontmatter-kanban-filter-header" });
-    filterHeader.createSpan({ text: "Filter groups" });
-    const mode = new import_obsidian2.DropdownComponent(filterHeader);
-    mode.addOption("and", "All groups");
-    mode.addOption("or", "Any group");
-    mode.setValue(this.filterMode);
-    mode.onChange((value) => {
-      this.openToolbarPanel = "filters";
-      this.filterMode = value;
-      this.refresh();
-    });
-    new import_obsidian2.ButtonComponent(filterHeader).setIcon("folder-plus").setTooltip("Add group").onClick(() => {
-      this.openToolbarPanel = "filters";
-      this.getFilterGroups().push(this.createDefaultGroup());
-      this.refresh();
-    });
-    if (!this.getFilterCount()) {
-      filters.createDiv({ cls: "frontmatter-kanban-filter-empty", text: "No filters" });
-    }
-    const groups = this.getFilterGroups();
-    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-      this.renderFilterGroup(filters, groups[groupIndex], `Group ${groupIndex + 1}`, () => {
-        this.getFilterGroups().splice(groupIndex, 1);
-        if (!this.filterGroups.length) {
-          this.filterGroups.push({ mode: "and", filters: [] });
-        }
-      });
-    }
+  entryToTask(entry) {
+    const file = getEntryFile(entry);
+    if (!file) return null;
+    const frontmatter = this.getFrontmatter(file);
+    delete frontmatter.position;
+    return { file, frontmatter, pluginSettings: this.plugin.settings };
   }
-  renderFilterGroup(container, group, label, onRemove, depth = 0) {
-    const groupEl = container.createDiv({ cls: "frontmatter-kanban-filter-group" });
-    if (depth > 0) {
-      groupEl.addClass("is-nested");
-      groupEl.setAttr("data-depth", String(depth));
-    }
-    const header = groupEl.createDiv({ cls: "frontmatter-kanban-filter-group-header" });
-    header.createSpan({ text: label });
-    const mode = new import_obsidian2.DropdownComponent(header);
-    mode.addOption("and", "All conditions");
-    mode.addOption("or", "Any condition");
-    mode.setValue(group.mode || "and");
-    mode.onChange((value) => {
-      this.openToolbarPanel = "filters";
-      group.mode = value;
-      this.refresh();
-    });
-    new import_obsidian2.ButtonComponent(header).setIcon("plus").setTooltip("Add condition").onClick(() => {
-      this.openToolbarPanel = "filters";
-      group.filters.push(this.createDefaultFilter());
-      this.refresh();
-    });
-    new import_obsidian2.ButtonComponent(header).setIcon("folder-plus").setTooltip("Add nested group").onClick(() => {
-      this.openToolbarPanel = "filters";
-      this.getGroupChildren(group).push(this.createDefaultGroup());
-      this.refresh();
-    });
-    new import_obsidian2.ButtonComponent(header).setIcon("x").setTooltip("Remove group").onClick(() => {
-      this.openToolbarPanel = "filters";
-      onRemove();
-      this.refresh();
-    });
-    const children = this.getGroupChildren(group);
-    if (!children.length) {
-      groupEl.createDiv({ cls: "frontmatter-kanban-filter-empty", text: "No conditions" });
-    }
-    for (let filterIndex = 0; filterIndex < children.length; filterIndex += 1) {
-      const child = children[filterIndex];
-      if (this.isFilterGroupNode(child)) {
-        this.renderFilterGroup(groupEl, child, "Nested group", () => {
-          this.getGroupChildren(group).splice(filterIndex, 1);
-        }, depth + 1);
-      } else {
-        this.renderFilterRow(groupEl, group, child, filterIndex);
-      }
-    }
-  }
-  renderToolbarPanel(container, key, icon, tooltip, renderBody, badgeText = "") {
-    const panel = container.createEl("details", { cls: "frontmatter-kanban-toolbar-popover" });
-    panel.open = this.openToolbarPanel === key;
-    if (badgeText) panel.addClass("is-active");
-    panel.addEventListener("toggle", () => {
-      if (panel.open) {
-        container.querySelectorAll(".frontmatter-kanban-toolbar-popover[open]").forEach((otherPanel) => {
-          if (otherPanel !== panel) otherPanel.open = false;
-        });
-        this.openToolbarPanel = key;
-      } else if (this.openToolbarPanel === key) {
-        this.openToolbarPanel = null;
-      }
-    });
-    const summary = panel.createEl("summary");
-    summary.setAttr("aria-label", tooltip);
-    summary.setAttr("title", tooltip);
-    const iconEl = summary.createSpan({ cls: "frontmatter-kanban-toolbar-icon" });
-    (0, import_obsidian2.setIcon)(iconEl, icon);
-    summary.createSpan({ cls: "frontmatter-kanban-toolbar-label", text: tooltip });
-    if (badgeText) {
-      summary.createSpan({ cls: "frontmatter-kanban-toolbar-badge", text: badgeText });
-    }
-    const body = panel.createDiv({ cls: "frontmatter-kanban-popover-body" });
-    renderBody(body);
-  }
-  renderFilterRow(container, group, filter, filterIndex) {
-    const row = container.createDiv({ cls: "frontmatter-kanban-filter-row" });
-    const fields = getAllFieldDefinitions(this.plugin);
-    const fieldDropdown = new import_obsidian2.DropdownComponent(row);
-    for (const field of fields) {
-      fieldDropdown.addOption(field.id, field.name);
-    }
-    fieldDropdown.setValue(filter.field);
-    fieldDropdown.onChange((value) => {
-      this.openToolbarPanel = "filters";
-      filter.field = value;
-      const type2 = getFieldType(this.plugin, value);
-      filter.operator = getOperatorsForType(type2)[0][0];
-      filter.value = "";
-      filter.valueStart = "";
-      filter.valueEnd = "";
-      this.refresh();
-    });
-    const type = getFieldType(this.plugin, filter.field);
-    const operatorDropdown = new import_obsidian2.DropdownComponent(row);
-    setDropdownOptions(operatorDropdown, getOperatorsForType(type));
-    operatorDropdown.setValue(filter.operator);
-    operatorDropdown.onChange((value) => {
-      this.openToolbarPanel = "filters";
-      filter.operator = value;
-      this.refresh();
-    });
-    this.renderFilterValue(row, filter, type);
-    new import_obsidian2.ButtonComponent(row).setIcon("x").setTooltip("Remove condition").onClick(() => {
-      this.openToolbarPanel = "filters";
-      group.filters.splice(filterIndex, 1);
-      this.refresh();
-    });
-  }
-  renderFilterValue(row, filter, type) {
-    if (filter.operator === "is_empty" || filter.operator === "not_empty") {
-      row.createSpan({ cls: "frontmatter-kanban-filter-placeholder", text: "No value" });
-      return;
-    }
-    if (type === "date-range" && filter.operator === "overlaps") {
-      const start = row.createEl("input", { type: "date" });
-      start.value = filter.valueStart || "";
-      start.addEventListener("change", () => {
-        this.openToolbarPanel = "filters";
-        filter.valueStart = start.value;
-        this.refresh();
-      });
-      const end = row.createEl("input", { type: "date" });
-      end.value = filter.valueEnd || "";
-      end.addEventListener("change", () => {
-        this.openToolbarPanel = "filters";
-        filter.valueEnd = end.value;
-        this.refresh();
-      });
-      return;
-    }
-    if (type === "date" || type === "date-range") {
-      this.renderDateFilterValue(row, filter, "date");
-      return;
-    }
-    if (type === "datetime") {
-      this.renderDateFilterValue(row, filter, "datetime-local");
-      return;
-    }
-    if (type === "checkbox") {
-      if (!filter.value) filter.value = "true";
-      const dropdown = new import_obsidian2.DropdownComponent(row);
-      dropdown.addOption("true", "Checked");
-      dropdown.addOption("false", "Unchecked");
-      dropdown.setValue(filter.value || "true");
-      dropdown.onChange((value) => {
-        this.openToolbarPanel = "filters";
-        filter.value = value;
-        this.refresh();
-      });
-      return;
-    }
-    if (filter.field === "status") {
-      if (!filter.value) filter.value = this.plugin.settings.statuses[0] || "";
-      const dropdown = new import_obsidian2.DropdownComponent(row);
-      for (const status of this.plugin.settings.statuses) {
-        dropdown.addOption(status, status);
-      }
-      dropdown.setValue(filter.value || this.plugin.settings.statuses[0] || "");
-      dropdown.onChange((value) => {
-        this.openToolbarPanel = "filters";
-        filter.value = value;
-        this.refresh();
-      });
-      return;
-    }
-    if (filter.field === "priority") {
-      if (!filter.value) filter.value = PRIORITIES[0];
-      const dropdown = new import_obsidian2.DropdownComponent(row);
-      for (const priority of PRIORITIES) {
-        dropdown.addOption(priority, priority);
-      }
-      dropdown.setValue(filter.value || PRIORITIES[0]);
-      dropdown.onChange((value) => {
-        this.openToolbarPanel = "filters";
-        filter.value = value;
-        this.refresh();
-      });
-      return;
-    }
-    const customField = this.plugin.settings.customFields.find((field) => field.id === filter.field);
-    if (customField && customField.type === "select") {
-      const options = customField.options.split(",").map((item) => item.trim()).filter(Boolean);
-      if (!filter.value && options.length) filter.value = options[0];
-      const dropdown = new import_obsidian2.DropdownComponent(row);
-      for (const option of options) {
-        dropdown.addOption(option, option);
-      }
-      dropdown.setValue(filter.value || "");
-      dropdown.onChange((value) => {
-        this.openToolbarPanel = "filters";
-        filter.value = value;
-        this.refresh();
-      });
-      return;
-    }
-    const input = row.createEl("input", { type: type === "number" ? "number" : "text" });
-    input.value = filter.value || "";
-    input.addEventListener("change", () => {
-      this.openToolbarPanel = "filters";
-      filter.value = input.value;
-      this.refresh();
-    });
-  }
-  renderDateFilterValue(row, filter, inputType) {
-    const modeDropdown = new import_obsidian2.DropdownComponent(row);
-    for (const [value, label] of DATE_FILTER_MODES) {
-      modeDropdown.addOption(value, label);
-    }
-    modeDropdown.setValue(getDateFilterMode(filter));
-    modeDropdown.onChange((value) => {
-      var _a;
-      this.openToolbarPanel = "filters";
-      filter.dateMode = value;
-      if (value === "relative") {
-        filter.relativeAmount = (_a = filter.relativeAmount) != null ? _a : 0;
-        filter.relativeUnit = filter.relativeUnit || "days";
-        filter.relativeDirection = filter.relativeDirection || "from_now";
-      }
-      if (value === "formula") {
-        filter.formula = filter.formula || "today";
-      }
-      this.refresh();
-    });
-    const mode = getDateFilterMode(filter);
-    if (mode === "relative") {
-      const amount = row.createEl("input", { type: "number", cls: "frontmatter-kanban-filter-amount" });
-      amount.min = "0";
-      amount.step = "1";
-      amount.value = filter.relativeAmount === void 0 ? "0" : String(filter.relativeAmount);
-      amount.addEventListener("change", () => {
-        this.openToolbarPanel = "filters";
-        filter.relativeAmount = amount.value;
-        this.refresh();
-      });
-      const unit = new import_obsidian2.DropdownComponent(row);
-      for (const [value, label] of RELATIVE_DATE_UNITS) {
-        unit.addOption(value, label);
-      }
-      unit.setValue(filter.relativeUnit || "days");
-      unit.onChange((value) => {
-        this.openToolbarPanel = "filters";
-        filter.relativeUnit = value;
-        this.refresh();
-      });
-      const direction = new import_obsidian2.DropdownComponent(row);
-      for (const [value, label] of RELATIVE_DATE_DIRECTIONS) {
-        direction.addOption(value, label);
-      }
-      direction.setValue(filter.relativeDirection || "from_now");
-      direction.onChange((value) => {
-        this.openToolbarPanel = "filters";
-        filter.relativeDirection = value;
-        this.refresh();
-      });
-      return;
-    }
-    if (mode === "formula") {
-      const formula = row.createEl("input", {
-        type: "text",
-        cls: "frontmatter-kanban-filter-formula"
-      });
-      formula.placeholder = "today - 7d";
-      formula.value = filter.formula || "";
-      formula.addEventListener("change", () => {
-        this.openToolbarPanel = "filters";
-        filter.formula = formula.value;
-        this.refresh();
-      });
-      return;
-    }
-    const input = row.createEl("input", { type: inputType });
-    input.value = filter.value || "";
-    input.addEventListener("change", () => {
-      this.openToolbarPanel = "filters";
-      filter.value = input.value;
-      this.refresh();
-    });
-  }
-  renderColumn(board, status, tasks, columnIndex) {
+  renderColumn(board, status, entries, columnIndex) {
     const column = board.createDiv({ cls: "frontmatter-kanban-column" });
     column.dataset.status = status;
     column.style.setProperty("--kanban-column-accent", COLUMN_ACCENTS[columnIndex % COLUMN_ACCENTS.length]);
     const header = column.createDiv({ cls: "frontmatter-kanban-column-header" });
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
     title.createSpan({ text: status });
-    title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(tasks.length) });
+    title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(entries.length) });
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
-    cards.addEventListener("dragover", (event) => {
+    this.registerDomEvent(cards, "dragover", (event) => {
       event.preventDefault();
       column.addClass("is-drag-target");
       cards.addClass("is-drag-over");
     });
-    cards.addEventListener("dragleave", (event) => {
+    this.registerDomEvent(cards, "dragleave", (event) => {
       if (event.relatedTarget && cards.contains(event.relatedTarget)) return;
       column.removeClass("is-drag-target");
       cards.removeClass("is-drag-over");
     });
-    cards.addEventListener("drop", async (event) => {
+    this.registerDomEvent(cards, "drop", async (event) => {
       event.preventDefault();
       column.removeClass("is-drag-target");
       cards.removeClass("is-drag-over");
       const path = event.dataTransfer.getData("text/plain");
-      const file = this.app.vault.getAbstractFileByPath(path);
+      const file = this.plugin.app.vault.getAbstractFileByPath(path);
       if (file instanceof import_obsidian2.TFile) {
         await this.plugin.updateTaskStatus(file, status);
       }
     });
-    for (const task of tasks) {
-      this.renderCard(cards, task);
+    for (const entry of entries) {
+      const task = this.entryToTask(entry);
+      if (task) this.renderCard(cards, task);
     }
-    if (!tasks.length) {
+    if (!entries.length) {
       cards.createDiv({ cls: "frontmatter-kanban-column-empty", text: "No tasks" });
     }
   }
   renderCard(cards, task) {
     const card = cards.createDiv({ cls: `frontmatter-kanban-card ${getDueClass(task)}` });
     card.draggable = true;
-    card.addEventListener("dragstart", (event) => {
+    this.registerDomEvent(card, "dragstart", (event) => {
       if (!event.dataTransfer) return;
       card.addClass("is-dragging");
       event.dataTransfer.setData("text/plain", task.file.path);
       event.dataTransfer.effectAllowed = "move";
     });
-    card.addEventListener("dragend", () => {
+    this.registerDomEvent(card, "dragend", () => {
       card.removeClass("is-dragging");
       this.suppressNextCardClick = true;
       this.containerEl.querySelectorAll(".frontmatter-kanban-cards.is-drag-over").forEach((element) => {
@@ -1409,21 +682,21 @@ var KanbanView = class extends import_obsidian2.ItemView {
         this.suppressNextCardClick = false;
       }, 80);
     });
-    card.addEventListener("click", () => {
+    this.registerDomEvent(card, "click", () => {
       if (this.suppressNextCardClick) return;
       if (this.cardClickTimer) window.clearTimeout(this.cardClickTimer);
       this.cardClickTimer = window.setTimeout(() => {
         this.cardClickTimer = null;
-        new EditTaskModal(this.app, this.plugin, task).open();
+        new EditTaskModal(this.plugin.app, this.plugin, task).open();
       }, 180);
     });
-    card.addEventListener("dblclick", (event) => {
+    this.registerDomEvent(card, "dblclick", (event) => {
       event.preventDefault();
       if (this.cardClickTimer) {
         window.clearTimeout(this.cardClickTimer);
         this.cardClickTimer = null;
       }
-      this.app.workspace.getLeaf(false).openFile(task.file);
+      this.plugin.app.workspace.getLeaf(false).openFile(task.file);
     });
     card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
     const summary = this.getCardSummary(task);
@@ -1458,35 +731,67 @@ var KanbanView = class extends import_obsidian2.ItemView {
     const fm = task.frontmatter;
     return String(fm.description || fm.summary || fm.notes || "").trim();
   }
-  applySortAndFilters(tasks) {
-    let result = tasks.slice();
-    const activeGroups = this.getFilterGroups().filter((group) => this.getFilterNodeCount(group) > 0);
-    if (activeGroups.length) {
-      result = result.filter((task) => {
-        const groupMatches = activeGroups.map((group) => this.matchesFilterGroup(task, group));
-        return this.filterMode === "or" ? groupMatches.some(Boolean) : groupMatches.every(Boolean);
-      });
-    }
-    const type = getFieldType(this.plugin, this.sortField);
-    result.sort((a, b) => {
-      const compared = compareValues(type, getFieldValue(a, this.sortField), getFieldValue(b, this.sortField));
-      return this.sortDirection === "asc" ? compared : -compared;
-    });
-    return result;
-  }
-  matchesFilterGroup(task, group) {
-    const activeChildren = this.getGroupChildren(group).filter((child) => this.getFilterNodeCount(child) > 0);
-    if (!activeChildren.length) return true;
-    const childMatches = activeChildren.map((child) => {
-      if (this.isFilterGroupNode(child)) return this.matchesFilterGroup(task, child);
-      return matchesFilter(task, child, this.plugin);
-    });
-    return group.mode === "or" ? childMatches.some(Boolean) : childMatches.every(Boolean);
-  }
 };
+function buildKanbanBasesViewFactory(plugin) {
+  return function(controller, containerEl) {
+    return new KanbanBasesView(controller, containerEl, plugin);
+  };
+}
+
+// src/bases/defaultKanbanBase.ts
+function formatPriorityWeightFormula() {
+  const entries = Object.entries(PRIORITY_WEIGHTS);
+  return entries.reduceRight((expression, [priority, weight]) => `if(note.priority == "${priority}", ${weight}, ${expression})`, "0");
+}
+function generateDefaultKanbanBase() {
+  return `filters:
+  or:
+    - note["kanban_task"] == true
+    - note.status && note.status != ""
+formulas:
+  priorityWeight: ${formatPriorityWeightFormula()}
+  isOverdue: note.due && date(note.due) < today() && note.status != "done"
+  daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
+views:
+  - type: frontmatterKanban
+    name: Kanban Board
+    groupBy:
+      property: note.status
+      direction: ASC
+    order:
+      - note.status
+      - note.priority
+      - formula.priorityWeight
+      - note.due
+      - note.work_start
+      - note.work_end
+      - note.completed
+      - file.name
+    sort:
+      - property: formula.priorityWeight
+        direction: DESC
+      - property: note.due
+        direction: ASC
+    options:
+      columnWidth: 280
+`;
+}
 
 // src/settings/KanbanSettingTab.ts
 var import_obsidian3 = require("obsidian");
+
+// src/utils/text.ts
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+function sanitizeFileName(title) {
+  return title.replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim();
+}
+function normalizeFieldId(value) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+// src/settings/KanbanSettingTab.ts
 var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -1635,10 +940,7 @@ var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
 var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
   async onload() {
     await this.loadSettings();
-    this.registerView(
-      VIEW_TYPE_KANBAN,
-      (leaf) => new KanbanView(leaf, this)
-    );
+    this.registerBasesIntegration();
     this.addRibbonIcon("kanban", "Open Kanban board", () => {
       this.activateView();
     });
@@ -1700,17 +1002,50 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     this.refreshViews();
   }
   async activateView() {
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN);
-    if (leaves.length) {
-      this.app.workspace.revealLeaf(leaves[0]);
-      return;
-    }
+    const file = await this.ensureKanbanBaseFile();
     const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({ type: VIEW_TYPE_KANBAN, active: true });
+    await leaf.openFile(file);
     this.app.workspace.revealLeaf(leaf);
   }
+  registerBasesIntegration() {
+    if (typeof this.registerBasesView !== "function") {
+      new import_obsidian4.Notice("Obsidian Bases API is not available. Please update Obsidian and enable the Bases core plugin.");
+      return;
+    }
+    const registered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
+      name: "Frontmatter Kanban",
+      icon: "kanban",
+      factory: buildKanbanBasesViewFactory(this),
+      options: () => [
+        {
+          type: "slider",
+          key: "columnWidth",
+          displayName: "Column width",
+          default: 280,
+          min: 220,
+          max: 420,
+          step: 20
+        }
+      ]
+    });
+    if (!registered) {
+      new import_obsidian4.Notice("Enable the Bases core plugin to use Frontmatter Kanban views.");
+    }
+  }
+  getKanbanBasePath() {
+    const folder = (0, import_obsidian4.normalizePath)(this.settings.taskFolder || "Tasks");
+    return (0, import_obsidian4.normalizePath)(`${folder}/${DEFAULT_BASES_VIEW_FOLDER}/${DEFAULT_KANBAN_BASE_FILE}`);
+  }
+  async ensureKanbanBaseFile() {
+    const path = this.getKanbanBasePath();
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof import_obsidian4.TFile) return existing;
+    const folder = path.split("/").slice(0, -1).join("/");
+    await this.ensureFolder(folder);
+    return this.app.vault.create(path, generateDefaultKanbanBase());
+  }
   refreshViews() {
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN)) {
+    for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
       if (leaf.view && leaf.view.refresh) {
         leaf.view.refresh();
       }

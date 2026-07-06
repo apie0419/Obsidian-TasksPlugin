@@ -1,10 +1,13 @@
-import { Notice, Plugin, normalizePath, stringifyYaml } from "obsidian";
+import { Notice, Plugin, TFile, normalizePath, stringifyYaml } from "obsidian";
 import {
+  BASES_KANBAN_VIEW_TYPE,
   DEFAULT_SETTINGS,
+  DEFAULT_BASES_VIEW_FOLDER,
+  DEFAULT_KANBAN_BASE_FILE,
   FIELD_TYPES,
-  VIEW_TYPE_KANBAN
 } from "./constants";
-import { KanbanView } from "./views/KanbanView";
+import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
+import { generateDefaultKanbanBase } from "./bases/defaultKanbanBase";
 import { CreateTaskModal } from "./modals/TaskModals";
 import { KanbanSettingTab } from "./settings/KanbanSettingTab";
 import { cleanStatus, dedupeStatuses, isDoneStatus, statusEquals } from "./status";
@@ -16,10 +19,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    this.registerView(
-      VIEW_TYPE_KANBAN,
-      (leaf) => new KanbanView(leaf, this)
-    );
+    this.registerBasesIntegration();
 
     this.addRibbonIcon("kanban", "Open Kanban board", () => {
       this.activateView();
@@ -89,18 +89,57 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   async activateView() {
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN);
-    if (leaves.length) {
-      this.app.workspace.revealLeaf(leaves[0]);
-      return;
-    }
+    const file = await this.ensureKanbanBaseFile();
     const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({ type: VIEW_TYPE_KANBAN, active: true });
+    await leaf.openFile(file);
     this.app.workspace.revealLeaf(leaf);
   }
 
+  registerBasesIntegration() {
+    if (typeof this.registerBasesView !== "function") {
+      new Notice("Obsidian Bases API is not available. Please update Obsidian and enable the Bases core plugin.");
+      return;
+    }
+
+    const registered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
+      name: "Frontmatter Kanban",
+      icon: "kanban",
+      factory: buildKanbanBasesViewFactory(this),
+      options: () => [
+        {
+          type: "slider",
+          key: "columnWidth",
+          displayName: "Column width",
+          default: 280,
+          min: 220,
+          max: 420,
+          step: 20
+        }
+      ]
+    });
+
+    if (!registered) {
+      new Notice("Enable the Bases core plugin to use Frontmatter Kanban views.");
+    }
+  }
+
+  getKanbanBasePath() {
+    const folder = normalizePath(this.settings.taskFolder || "Tasks");
+    return normalizePath(`${folder}/${DEFAULT_BASES_VIEW_FOLDER}/${DEFAULT_KANBAN_BASE_FILE}`);
+  }
+
+  async ensureKanbanBaseFile() {
+    const path = this.getKanbanBasePath();
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) return existing;
+
+    const folder = path.split("/").slice(0, -1).join("/");
+    await this.ensureFolder(folder);
+    return this.app.vault.create(path, generateDefaultKanbanBase());
+  }
+
   refreshViews() {
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN)) {
+    for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
       if (leaf.view && leaf.view.refresh) {
         leaf.view.refresh();
       }
