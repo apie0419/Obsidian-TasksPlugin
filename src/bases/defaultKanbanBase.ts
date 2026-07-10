@@ -1,4 +1,8 @@
-import { PRIORITY_WEIGHTS, TASK_TAG } from "../constants";
+import { DEFAULT_SETTINGS, PRIORITY_WEIGHTS, TASK_TAG } from "../constants";
+
+function escapeBaseString(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+}
 
 function formatPriorityWeightFormula() {
   const entries = Object.entries(PRIORITY_WEIGHTS);
@@ -7,10 +11,12 @@ function formatPriorityWeightFormula() {
   ), "0");
 }
 
-export function generateDefaultKanbanBase() {
+export function generateDefaultKanbanBase(taskFolder = DEFAULT_SETTINGS.taskFolder) {
+  const folder = escapeBaseString(taskFolder || DEFAULT_SETTINGS.taskFolder);
   return `filters:
   and:
     - note.tags.contains("${TASK_TAG}")
+    - file.path.startsWith("${folder}/")
 formulas:
   priorityWeight: ${formatPriorityWeightFormula()}
   isOverdue: note.due && date(note.due) < today() && note.status != "done"

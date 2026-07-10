@@ -97,11 +97,11 @@ export class KanbanBasesView extends BasesView {
     if (groupedData.length > 1 || (groupedData[0] && groupedData[0].hasKey && groupedData[0].hasKey())) {
       return this.mergeConfiguredStatuses(groupedData.map((group) => ({
         status: this.normalizeStatus(valueToString(group.key)),
-        entries: group.entries || []
+        entries: this.getTaskFolderEntries(group.entries || [])
       })));
     }
 
-    const entries = this.data && Array.isArray(this.data.data) ? this.data.data : [];
+    const entries = this.getTaskFolderEntries(this.data && Array.isArray(this.data.data) ? this.data.data : []);
     const groupsByStatus = new Map();
     for (const entry of entries) {
       const file = getEntryFile(entry);
@@ -115,6 +115,13 @@ export class KanbanBasesView extends BasesView {
       status,
       entries: statusEntries
     })));
+  }
+
+  getTaskFolderEntries(entries) {
+    return entries.filter((entry) => {
+      const file = getEntryFile(entry);
+      return this.plugin.isKanbanTaskFile(file);
+    });
   }
 
   normalizeStatus(value) {

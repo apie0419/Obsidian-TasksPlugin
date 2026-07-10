@@ -43,11 +43,11 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     this.addSettingTab(new KanbanSettingTab(this.app, this));
 
+    this.derivedFieldSyncRunning = new Set();
     this.registerEvent(
-      this.app.metadataCache.on("changed", () => {
-        this.refreshViews();
-        this.syncCompletionDates();
-        this.syncPriorityWeights();
+      this.app.metadataCache.on("changed", (file) => {
+        this.scheduleRefreshViews();
+        this.syncDerivedFieldsForFile(file).catch((error) => console.error("Failed to sync task fields", error));
       })
     );
     this.registerEvent(
@@ -56,8 +56,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1000));
 
     await this.migrateLegacyTaskTags();
-    this.syncCompletionDates();
-    this.syncPriorityWeights();
+    this.syncDerivedFields();
     this.checkNotifications();
   }
 
@@ -84,6 +83,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       clone(DEFAULT_SETTINGS.createFormFields),
       this.settings.createFormFields || {}
     );
+    this.settings.taskFolder = normalizePath(this.settings.taskFolder || DEFAULT_SETTINGS.taskFolder);
     this.settings.baseFilePath = normalizePath(this.settings.baseFilePath || DEFAULT_SETTINGS.baseFilePath);
     this.settings.projectFolder = normalizePath(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
     delete this.settings.featureFolder;
@@ -91,7 +91,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-    this.refreshViews();
+    this.scheduleRefreshViews();
   }
 
   async activateView() {
@@ -152,7 +152,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
-    return this.createMarkdownFile(path, generateDefaultKanbanBase());
+    return this.createMarkdownFile(path, generateDefaultKanbanBase(this.getTaskFolder()));
   }
 
   async migrateKanbanBaseFile(file) {
@@ -179,6 +179,18 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       `note.tags.contains("${TASK_TAG}")`
     );
 
+    const taskFolderFilter = `    - file.path.startsWith("${this.escapeBaseString(this.getTaskFolder())}/")`;
+    if (
+      nextContents.includes(`note.tags.contains("${TASK_TAG}")`)
+      && !nextContents.includes("file.path.startsWith(")
+      && !nextContents.includes("file.folder")
+    ) {
+      nextContents = nextContents.replace(
+        new RegExp(`(\\s+- note\\.tags\\.contains\\("${TASK_TAG}"\\))`),
+        `$1\n${taskFolderFilter}`
+      );
+    }
+
     if (nextContents === contents) return;
 
     await this.app.vault.modify(file, nextContents);
@@ -192,14 +204,43 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
   }
 
+  scheduleRefreshViews(delay = 100) {
+    if (this.refreshViewsTimer) window.clearTimeout(this.refreshViewsTimer);
+    this.refreshViewsTimer = window.setTimeout(() => {
+      this.refreshViewsTimer = null;
+      this.refreshViews();
+    }, delay);
+  }
+
+  getTaskFolder() {
+    return normalizePath(this.settings.taskFolder || DEFAULT_SETTINGS.taskFolder);
+  }
+
+  isPathInTaskFolder(path) {
+    const folder = this.getTaskFolder();
+    return Boolean(folder && (path === folder || path.startsWith(`${folder}/`)));
+  }
+
+  isFileInTaskFolder(file) {
+    return Boolean(file && this.isPathInTaskFolder(file.path));
+  }
+
+  isKanbanTaskFile(file) {
+    if (!(file instanceof TFile) || file.extension !== "md" || !this.isFileInTaskFolder(file)) {
+      return false;
+    }
+
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = cache && cache.frontmatter;
+    return this.isTaskFrontmatter(frontmatter);
+  }
+
+  escapeBaseString(value) {
+    return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+  }
+
   getCandidateTaskFiles() {
-    const folder = normalizePath(this.settings.taskFolder || "");
-    return this.app.vault.getMarkdownFiles().filter((file) => {
-      if (folder && !(file.path === folder || file.path.startsWith(`${folder}/`))) {
-        return false;
-      }
-      return true;
-    });
+    return this.app.vault.getMarkdownFiles().filter((file) => this.isFileInTaskFolder(file));
   }
 
   isLegacyTaskFrontmatter(frontmatter) {
@@ -213,11 +254,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   getTaskFiles() {
-    return this.getCandidateTaskFiles().filter((file) => {
-      const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = cache && cache.frontmatter;
-      return this.isTaskFrontmatter(frontmatter);
-    });
+    return this.getCandidateTaskFiles().filter((file) => this.isKanbanTaskFile(file));
   }
 
   async getTasks() {
@@ -231,7 +268,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   async createTask(values) {
-    const folder = normalizePath(this.settings.taskFolder || "Tasks");
+    const folder = this.getTaskFolder();
     await this.ensureFolder(folder);
 
     const sanitizedTitle = sanitizeFileName(values.title);
@@ -284,7 +321,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const yaml = stringifyYaml(frontmatter).trim();
     await this.createMarkdownFile(path, `---\n${yaml}\n---\n\n# ${preparedValues.title}\n`);
     new Notice("Task created.");
-    this.refreshViews();
+    this.scheduleRefreshViews();
     return true;
   }
 
@@ -696,6 +733,55 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     new Notice("Task updated.");
     this.refreshViews();
     return true;
+  }
+
+  async syncDerivedFieldsForFile(file) {
+    if (!(file instanceof TFile) || file.extension !== "md") return;
+    if (this.derivedFieldSyncRunning.has(file.path)) return;
+
+    if (!this.isFileInTaskFolder(file)) return;
+
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = cache && cache.frontmatter;
+    if (!this.isTaskFrontmatter(frontmatter)) return;
+
+    const shouldSetCompleted = isDoneStatus(frontmatter.status) && !frontmatter.completed;
+    const shouldClearCompleted = frontmatter.status && !isDoneStatus(frontmatter.status) && frontmatter.completed;
+    const expectedWeight = frontmatter.priority ? getPriorityWeight(frontmatter.priority) : undefined;
+    const shouldSetPriorityWeight = expectedWeight !== undefined && Number(frontmatter.priority_weight) !== expectedWeight;
+    const shouldClearPriorityWeight = expectedWeight === undefined && frontmatter.priority_weight !== undefined;
+    if (!shouldSetCompleted && !shouldClearCompleted && !shouldSetPriorityWeight && !shouldClearPriorityWeight) return;
+
+    this.derivedFieldSyncRunning.add(file.path);
+    try {
+      await this.app.fileManager.processFrontMatter(file, (nextFrontmatter) => {
+        if (isDoneStatus(nextFrontmatter.status)) {
+          if (!nextFrontmatter.completed) nextFrontmatter.completed = nowIso();
+        } else {
+          delete nextFrontmatter.completed;
+        }
+
+        if (nextFrontmatter.priority) {
+          nextFrontmatter.priority_weight = getPriorityWeight(nextFrontmatter.priority);
+        } else {
+          delete nextFrontmatter.priority_weight;
+        }
+      });
+    } finally {
+      this.derivedFieldSyncRunning.delete(file.path);
+    }
+  }
+
+  async syncDerivedFields() {
+    if (this.derivedFieldFullSyncRunning) return;
+    this.derivedFieldFullSyncRunning = true;
+    try {
+      for (const file of this.getTaskFiles()) {
+        await this.syncDerivedFieldsForFile(file);
+      }
+    } finally {
+      this.derivedFieldFullSyncRunning = false;
+    }
   }
 
   async syncCompletionDates() {

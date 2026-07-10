@@ -150,7 +150,11 @@ function getWorkOnText(frontmatter) {
 
 // src/taskFields.ts
 function getTaskTitle(task) {
-  return String(task.frontmatter.title || "").trim() || "Untitled task";
+  const title = String(task.frontmatter.title || "").trim();
+  if (title) return title;
+  const basename = String(task.file.basename || "").trim();
+  const timestampedTitle = basename.match(/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}[-:]\d{2}(?:[-:]\d{2})?)?\s+-\s+(.+)$/);
+  return (timestampedTitle ? timestampedTitle[1].trim() : basename) || "Untitled task";
 }
 function getPriorityWeight(priority) {
   return PRIORITY_WEIGHTS[String(priority || "").toLowerCase()] || 0;
@@ -709,10 +713,10 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
     if (groupedData.length > 1 || groupedData[0] && groupedData[0].hasKey && groupedData[0].hasKey()) {
       return this.mergeConfiguredStatuses(groupedData.map((group) => ({
         status: this.normalizeStatus(valueToString(group.key)),
-        entries: group.entries || []
+        entries: this.getTaskFolderEntries(group.entries || [])
       })));
     }
-    const entries = this.data && Array.isArray(this.data.data) ? this.data.data : [];
+    const entries = this.getTaskFolderEntries(this.data && Array.isArray(this.data.data) ? this.data.data : []);
     const groupsByStatus = /* @__PURE__ */ new Map();
     for (const entry of entries) {
       const file = getEntryFile(entry);
@@ -725,6 +729,12 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       status,
       entries: statusEntries
     })));
+  }
+  getTaskFolderEntries(entries) {
+    return entries.filter((entry) => {
+      const file = getEntryFile(entry);
+      return this.plugin.isKanbanTaskFile(file);
+    });
   }
   normalizeStatus(value) {
     return valueToString(value) || this.plugin.getDefaultStatus();
@@ -922,14 +932,19 @@ function buildKanbanBasesViewFactory(plugin) {
 }
 
 // src/bases/defaultKanbanBase.ts
+function escapeBaseString(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
 function formatPriorityWeightFormula() {
   const entries = Object.entries(PRIORITY_WEIGHTS);
   return entries.reduceRight((expression, [priority, weight]) => `if(note.priority == "${priority}", ${weight}, ${expression})`, "0");
 }
-function generateDefaultKanbanBase() {
+function generateDefaultKanbanBase(taskFolder = DEFAULT_SETTINGS.taskFolder) {
+  const folder = escapeBaseString(taskFolder || DEFAULT_SETTINGS.taskFolder);
   return `filters:
   and:
     - note.tags.contains("${TASK_TAG}")
+    - file.path.startsWith("${folder}/")
 formulas:
   priorityWeight: ${formatPriorityWeightFormula()}
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
@@ -1201,11 +1216,11 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       callback: () => new CreateTaskModal(this.app, this).open()
     });
     this.addSettingTab(new KanbanSettingTab(this.app, this));
+    this.derivedFieldSyncRunning = /* @__PURE__ */ new Set();
     this.registerEvent(
-      this.app.metadataCache.on("changed", () => {
-        this.refreshViews();
-        this.syncCompletionDates();
-        this.syncPriorityWeights();
+      this.app.metadataCache.on("changed", (file) => {
+        this.scheduleRefreshViews();
+        this.syncDerivedFieldsForFile(file).catch((error) => console.error("Failed to sync task fields", error));
       })
     );
     this.registerEvent(
@@ -1213,8 +1228,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     );
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1e3));
     await this.migrateLegacyTaskTags();
-    this.syncCompletionDates();
-    this.syncPriorityWeights();
+    this.syncDerivedFields();
     this.checkNotifications();
   }
   async loadSettings() {
@@ -1241,13 +1255,14 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       clone(DEFAULT_SETTINGS.createFormFields),
       this.settings.createFormFields || {}
     );
+    this.settings.taskFolder = (0, import_obsidian4.normalizePath)(this.settings.taskFolder || DEFAULT_SETTINGS.taskFolder);
     this.settings.baseFilePath = (0, import_obsidian4.normalizePath)(this.settings.baseFilePath || DEFAULT_SETTINGS.baseFilePath);
     this.settings.projectFolder = (0, import_obsidian4.normalizePath)(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
     delete this.settings.featureFolder;
   }
   async saveSettings() {
     await this.saveData(this.settings);
-    this.refreshViews();
+    this.scheduleRefreshViews();
   }
   async activateView() {
     const file = await this.ensureKanbanBaseFile();
@@ -1300,7 +1315,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     }
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
-    return this.createMarkdownFile(path, generateDefaultKanbanBase());
+    return this.createMarkdownFile(path, generateDefaultKanbanBase(this.getTaskFolder()));
   }
   async migrateKanbanBaseFile(file) {
     const contents = await this.app.vault.cachedRead(file);
@@ -1325,6 +1340,14 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       new RegExp(`note\\.tags\\.contains\\("${LEGACY_TASK_TAG}"\\)`, "g"),
       `note.tags.contains("${TASK_TAG}")`
     );
+    const taskFolderFilter = `    - file.path.startsWith("${this.escapeBaseString(this.getTaskFolder())}/")`;
+    if (nextContents.includes(`note.tags.contains("${TASK_TAG}")`) && !nextContents.includes("file.path.startsWith(") && !nextContents.includes("file.folder")) {
+      nextContents = nextContents.replace(
+        new RegExp(`(\\s+- note\\.tags\\.contains\\("${TASK_TAG}"\\))`),
+        `$1
+${taskFolderFilter}`
+      );
+    }
     if (nextContents === contents) return;
     await this.app.vault.modify(file, nextContents);
   }
@@ -1335,14 +1358,36 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       }
     }
   }
+  scheduleRefreshViews(delay = 100) {
+    if (this.refreshViewsTimer) window.clearTimeout(this.refreshViewsTimer);
+    this.refreshViewsTimer = window.setTimeout(() => {
+      this.refreshViewsTimer = null;
+      this.refreshViews();
+    }, delay);
+  }
+  getTaskFolder() {
+    return (0, import_obsidian4.normalizePath)(this.settings.taskFolder || DEFAULT_SETTINGS.taskFolder);
+  }
+  isPathInTaskFolder(path) {
+    const folder = this.getTaskFolder();
+    return Boolean(folder && (path === folder || path.startsWith(`${folder}/`)));
+  }
+  isFileInTaskFolder(file) {
+    return Boolean(file && this.isPathInTaskFolder(file.path));
+  }
+  isKanbanTaskFile(file) {
+    if (!(file instanceof import_obsidian4.TFile) || file.extension !== "md" || !this.isFileInTaskFolder(file)) {
+      return false;
+    }
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = cache && cache.frontmatter;
+    return this.isTaskFrontmatter(frontmatter);
+  }
+  escapeBaseString(value) {
+    return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
   getCandidateTaskFiles() {
-    const folder = (0, import_obsidian4.normalizePath)(this.settings.taskFolder || "");
-    return this.app.vault.getMarkdownFiles().filter((file) => {
-      if (folder && !(file.path === folder || file.path.startsWith(`${folder}/`))) {
-        return false;
-      }
-      return true;
-    });
+    return this.app.vault.getMarkdownFiles().filter((file) => this.isFileInTaskFolder(file));
   }
   isLegacyTaskFrontmatter(frontmatter) {
     if (!frontmatter) return false;
@@ -1353,11 +1398,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     return Boolean(frontmatter && (hasFrontmatterTag(frontmatter, TASK_TAG) || this.isLegacyTaskFrontmatter(frontmatter)));
   }
   getTaskFiles() {
-    return this.getCandidateTaskFiles().filter((file) => {
-      const cache = this.app.metadataCache.getFileCache(file);
-      const frontmatter = cache && cache.frontmatter;
-      return this.isTaskFrontmatter(frontmatter);
-    });
+    return this.getCandidateTaskFiles().filter((file) => this.isKanbanTaskFile(file));
   }
   async getTasks() {
     const files = this.getTaskFiles();
@@ -1369,7 +1410,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     });
   }
   async createTask(values) {
-    const folder = (0, import_obsidian4.normalizePath)(this.settings.taskFolder || "Tasks");
+    const folder = this.getTaskFolder();
     await this.ensureFolder(folder);
     const sanitizedTitle = sanitizeFileName(values.title);
     if (!sanitizedTitle) {
@@ -1419,7 +1460,7 @@ ${yaml}
 # ${preparedValues.title}
 `);
     new import_obsidian4.Notice("Task created.");
-    this.refreshViews();
+    this.scheduleRefreshViews();
     return true;
   }
   getNewTaskPath(folder, sanitizedTitle) {
@@ -1762,6 +1803,48 @@ ${yaml}
     new import_obsidian4.Notice("Task updated.");
     this.refreshViews();
     return true;
+  }
+  async syncDerivedFieldsForFile(file) {
+    if (!(file instanceof import_obsidian4.TFile) || file.extension !== "md") return;
+    if (this.derivedFieldSyncRunning.has(file.path)) return;
+    if (!this.isFileInTaskFolder(file)) return;
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = cache && cache.frontmatter;
+    if (!this.isTaskFrontmatter(frontmatter)) return;
+    const shouldSetCompleted = isDoneStatus(frontmatter.status) && !frontmatter.completed;
+    const shouldClearCompleted = frontmatter.status && !isDoneStatus(frontmatter.status) && frontmatter.completed;
+    const expectedWeight = frontmatter.priority ? getPriorityWeight(frontmatter.priority) : void 0;
+    const shouldSetPriorityWeight = expectedWeight !== void 0 && Number(frontmatter.priority_weight) !== expectedWeight;
+    const shouldClearPriorityWeight = expectedWeight === void 0 && frontmatter.priority_weight !== void 0;
+    if (!shouldSetCompleted && !shouldClearCompleted && !shouldSetPriorityWeight && !shouldClearPriorityWeight) return;
+    this.derivedFieldSyncRunning.add(file.path);
+    try {
+      await this.app.fileManager.processFrontMatter(file, (nextFrontmatter) => {
+        if (isDoneStatus(nextFrontmatter.status)) {
+          if (!nextFrontmatter.completed) nextFrontmatter.completed = nowIso();
+        } else {
+          delete nextFrontmatter.completed;
+        }
+        if (nextFrontmatter.priority) {
+          nextFrontmatter.priority_weight = getPriorityWeight(nextFrontmatter.priority);
+        } else {
+          delete nextFrontmatter.priority_weight;
+        }
+      });
+    } finally {
+      this.derivedFieldSyncRunning.delete(file.path);
+    }
+  }
+  async syncDerivedFields() {
+    if (this.derivedFieldFullSyncRunning) return;
+    this.derivedFieldFullSyncRunning = true;
+    try {
+      for (const file of this.getTaskFiles()) {
+        await this.syncDerivedFieldsForFile(file);
+      }
+    } finally {
+      this.derivedFieldFullSyncRunning = false;
+    }
   }
   async syncCompletionDates() {
     if (this.completionSyncRunning) return;
