@@ -24,6 +24,7 @@ import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
 
 export default class FrontmatterKanbanPlugin extends Plugin {
   async onload() {
+    await this.loadStyles();
     await this.loadSettings();
 
     this.registerBasesIntegration();
@@ -64,6 +65,23 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.migrateLegacyTaskTags();
     this.syncDerivedFields();
     this.checkNotifications();
+  }
+
+  async loadStyles() {
+    const styleId = `${this.manifest.id}-managed-styles`;
+    document.getElementById(styleId)?.remove();
+
+    const stylePath = normalizePath(`${this.manifest.dir || ""}/styles.css`);
+    try {
+      const css = await this.app.vault.adapter.read(stylePath);
+      const styleEl = document.createElement("style");
+      styleEl.id = styleId;
+      styleEl.textContent = css;
+      document.head.appendChild(styleEl);
+      this.register(() => styleEl.remove());
+    } catch (error) {
+      console.warn(`Failed to load ${stylePath}`, error);
+    }
   }
 
   async loadSettings() {

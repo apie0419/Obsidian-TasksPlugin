@@ -418,7 +418,10 @@
 }
 
 .frontmatter-kanban-card.priority-low {
-  border-left-color: var(--background-modifier-border);
+  border-left-color: #35c98f;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, #35c98f 9%, transparent), transparent 42%),
+    var(--background-primary);
 }
 
 .frontmatter-kanban-card-hero {
@@ -860,6 +863,41 @@
   max-width: 280px;
 }
 
+.frontmatter-kanban-modal .frontmatter-kanban-date-range-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.frontmatter-kanban-modal .frontmatter-kanban-date-picker-control {
+  display: inline-flex;
+  align-items: center;
+}
+
+.frontmatter-kanban-modal .frontmatter-kanban-date-picker-trigger {
+  min-width: 132px;
+  height: 30px;
+  padding: 0 10px;
+  justify-content: flex-start;
+  color: var(--text-normal);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-size: var(--font-ui-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.frontmatter-kanban-modal .frontmatter-kanban-date-picker-control .frontmatter-kanban-date-picker-trigger {
+  min-width: 168px;
+}
+
+.frontmatter-kanban-date-range-arrow {
+  color: var(--text-muted);
+  font-weight: 700;
+  line-height: 1;
+}
+
 .frontmatter-kanban-filter-row input.frontmatter-kanban-filter-amount {
   max-width: 72px;
 }
@@ -880,12 +918,122 @@
 }
 
 .frontmatter-kanban-suggestion-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 600;
+}
+
+.frontmatter-kanban-suggestion-emoji {
+  width: 1.4em;
+  flex: 0 0 auto;
+  text-align: center;
 }
 
 .frontmatter-kanban-suggestion-path {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+}
+
+.frontmatter-kanban-date-picker-modal {
+  width: min(360px, calc(100vw - 40px));
+}
+
+.frontmatter-kanban-date-picker-modal h2 {
+  margin-bottom: 14px;
+}
+
+.frontmatter-kanban-date-picker-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.frontmatter-kanban-date-picker-header button {
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.frontmatter-kanban-date-picker-month {
+  color: var(--text-normal);
+  font-weight: 750;
+  text-align: center;
+}
+
+.frontmatter-kanban-date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.frontmatter-kanban-date-picker-weekday {
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+  text-align: center;
+}
+
+.frontmatter-kanban-date-picker-empty {
+  min-height: 32px;
+}
+
+.frontmatter-kanban-date-picker-day {
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--text-normal);
+  background: var(--background-secondary);
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.frontmatter-kanban-date-picker-day:hover,
+.frontmatter-kanban-date-picker-day.is-today {
+  border-color: color-mix(in srgb, var(--interactive-accent) 45%, var(--background-modifier-border));
+}
+
+.frontmatter-kanban-date-picker-day.is-selected {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+.frontmatter-kanban-date-picker-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-kanban-date-picker-time > span:first-child {
+  margin-right: 4px;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.frontmatter-kanban-date-picker-time select {
+  width: 70px;
+}
+
+.frontmatter-kanban-date-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.frontmatter-kanban-date-picker-footer button:first-child {
+  margin-right: auto;
 }
 
 .frontmatter-kanban-settings-section {

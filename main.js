@@ -231,9 +231,180 @@ function formatTaskInfoDate(value) {
     hour12: false
   }).replace(/, (?=\d{2}:\d{2}$)/, " ");
 }
+var MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+var WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+function parsePickerDate(value) {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const dateMatch = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (dateMatch) {
+      return new Date(
+        Number(dateMatch[1]),
+        Number(dateMatch[2]) - 1,
+        Number(dateMatch[3]),
+        Number(dateMatch[4] || "0"),
+        Number(dateMatch[5] || "0")
+      );
+    }
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+function formatPickerDate(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+function formatPickerDateTime(date) {
+  return `${formatPickerDate(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+function formatPickerDisplay(value, includeTime) {
+  const date = parsePickerDate(value);
+  if (!date) return includeTime ? "Select date and time" : "Select date";
+  return includeTime ? formatPickerDateTime(date) : formatPickerDate(date);
+}
+function isSameDate(left, right) {
+  return Boolean(left && right && left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate());
+}
 function getReferenceLabel(kind) {
   return kind === "feature" ? "feature" : "project";
 }
+function getReferenceEmoji(kind) {
+  return kind === "feature" ? "\u{1F6E0}\uFE0F" : "\u{1F680}";
+}
+var DatePickerModal = class extends import_obsidian.Modal {
+  constructor(app, options) {
+    super(app);
+    this.titleText = options.title;
+    this.includeTime = Boolean(options.includeTime);
+    this.onApply = options.onApply;
+    this.selectedDate = parsePickerDate(options.value);
+    const seed = this.selectedDate || /* @__PURE__ */ new Date();
+    this.viewDate = new Date(seed.getFullYear(), seed.getMonth(), 1);
+    this.hour = this.selectedDate ? this.selectedDate.getHours() : 9;
+    this.minute = this.selectedDate ? this.selectedDate.getMinutes() : 0;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("frontmatter-kanban-date-picker-modal");
+    contentEl.createEl("h2", { text: this.titleText });
+    const header = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-header" });
+    const previous = header.createEl("button", { type: "button", text: "<" });
+    previous.addEventListener("click", () => {
+      this.viewDate = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth() - 1, 1);
+      this.render();
+    });
+    header.createDiv({
+      cls: "frontmatter-kanban-date-picker-month",
+      text: `${MONTH_LABELS[this.viewDate.getMonth()]} ${this.viewDate.getFullYear()}`
+    });
+    const next = header.createEl("button", { type: "button", text: ">" });
+    next.addEventListener("click", () => {
+      this.viewDate = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth() + 1, 1);
+      this.render();
+    });
+    const grid = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-grid" });
+    for (const weekday of WEEKDAY_LABELS) {
+      grid.createDiv({ cls: "frontmatter-kanban-date-picker-weekday", text: weekday });
+    }
+    const firstDay = this.viewDate.getDay();
+    const daysInMonth = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth() + 1, 0).getDate();
+    for (let index = 0; index < firstDay; index += 1) {
+      grid.createDiv({ cls: "frontmatter-kanban-date-picker-empty" });
+    }
+    const today = /* @__PURE__ */ new Date();
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth(), day, this.hour, this.minute);
+      const button = grid.createEl("button", {
+        type: "button",
+        cls: "frontmatter-kanban-date-picker-day",
+        text: String(day)
+      });
+      if (isSameDate(date, this.selectedDate)) button.addClass("is-selected");
+      if (isSameDate(date, today)) button.addClass("is-today");
+      button.addEventListener("click", () => {
+        this.selectedDate = date;
+        this.render();
+      });
+    }
+    if (this.includeTime) {
+      const time = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-time" });
+      time.createSpan({ text: "Time" });
+      const hour = time.createEl("select");
+      for (let value = 0; value < 24; value += 1) {
+        hour.createEl("option", { value: String(value), text: pad2(value) });
+      }
+      hour.value = String(this.hour);
+      hour.addEventListener("change", () => {
+        this.hour = Number(hour.value);
+        if (this.selectedDate) this.selectedDate.setHours(this.hour);
+      });
+      time.createSpan({ text: ":" });
+      const minute = time.createEl("select");
+      for (let value = 0; value < 60; value += 1) {
+        minute.createEl("option", { value: String(value), text: pad2(value) });
+      }
+      minute.value = String(this.minute);
+      minute.addEventListener("change", () => {
+        this.minute = Number(minute.value);
+        if (this.selectedDate) this.selectedDate.setMinutes(this.minute);
+      });
+    }
+    const footer = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-footer" });
+    const clear = footer.createEl("button", { type: "button", text: "Clear" });
+    clear.addEventListener("click", () => {
+      this.onApply("");
+      this.close();
+    });
+    const todayButton = footer.createEl("button", { type: "button", text: "Today" });
+    todayButton.addEventListener("click", () => {
+      const nextToday = /* @__PURE__ */ new Date();
+      nextToday.setHours(this.hour, this.minute, 0, 0);
+      this.selectedDate = nextToday;
+      this.viewDate = new Date(nextToday.getFullYear(), nextToday.getMonth(), 1);
+      this.render();
+    });
+    const cancel = footer.createEl("button", { type: "button", text: "Cancel" });
+    cancel.addEventListener("click", () => this.close());
+    const apply = footer.createEl("button", {
+      type: "button",
+      cls: "mod-cta",
+      text: "Apply"
+    });
+    apply.addEventListener("click", () => {
+      if (!this.selectedDate) {
+        new import_obsidian.Notice("Select a date first.");
+        return;
+      }
+      const selected = new Date(this.selectedDate);
+      selected.setHours(this.hour, this.minute, 0, 0);
+      this.onApply(this.includeTime ? selected.toISOString() : formatPickerDate(selected));
+      this.close();
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 var ReferenceNoteSuggestModal = class extends import_obsidian.SuggestModal {
   constructor(app, plugin, kind, sourcePath, projectValue, onChoose) {
     super(app);
@@ -254,8 +425,9 @@ var ReferenceNoteSuggestModal = class extends import_obsidian.SuggestModal {
     });
   }
   renderSuggestion(file, el) {
-    el.createDiv({ cls: "frontmatter-kanban-suggestion-title", text: file.basename });
-    el.createDiv({ cls: "frontmatter-kanban-suggestion-path", text: file.path });
+    const title = el.createDiv({ cls: "frontmatter-kanban-suggestion-title" });
+    title.createSpan({ cls: "frontmatter-kanban-suggestion-emoji", text: getReferenceEmoji(this.kind) });
+    title.createSpan({ text: file.basename });
   }
   onChooseSuggestion(file) {
     this.onChoose(this.plugin.getNoteLink(file, this.sourcePath));
@@ -398,23 +570,57 @@ var EditTaskModal = class extends import_obsidian.Modal {
   }
   renderDateTimeSetting(container, label, key) {
     const setting = new import_obsidian.Setting(container).setName(label);
-    const input = setting.controlEl.createEl("input", { type: "datetime-local" });
-    input.value = formatDateTimeForInput(this.values[key]);
-    input.addEventListener("change", () => {
-      this.values[key] = readDateInputAsIso(input.value);
+    setting.controlEl.addClass("frontmatter-kanban-date-picker-control");
+    const button = setting.controlEl.createEl("button", {
+      type: "button",
+      cls: "frontmatter-kanban-date-picker-trigger",
+      text: formatPickerDisplay(this.values[key], true)
+    });
+    button.addEventListener("click", () => {
+      new DatePickerModal(this.app, {
+        title: label,
+        value: this.values[key],
+        includeTime: true,
+        onApply: (value) => {
+          this.values[key] = value;
+          button.textContent = formatPickerDisplay(value, true);
+        }
+      }).open();
     });
   }
   renderDateRangeSetting(container, label, startKey, endKey) {
     const setting = new import_obsidian.Setting(container).setName(label);
-    const start = setting.controlEl.createEl("input", { type: "date" });
-    start.value = formatDateForInput(this.values[startKey]);
-    start.addEventListener("change", () => {
-      this.values[startKey] = start.value;
+    setting.controlEl.addClass("frontmatter-kanban-date-range-control");
+    const start = setting.controlEl.createEl("button", {
+      type: "button",
+      cls: "frontmatter-kanban-date-picker-trigger",
+      text: formatPickerDisplay(this.values[startKey], false)
     });
-    const end = setting.controlEl.createEl("input", { type: "date" });
-    end.value = formatDateForInput(this.values[endKey]);
-    end.addEventListener("change", () => {
-      this.values[endKey] = end.value;
+    start.addEventListener("click", () => {
+      new DatePickerModal(this.app, {
+        title: `${label} start`,
+        value: this.values[startKey],
+        onApply: (value) => {
+          this.values[startKey] = value;
+          start.textContent = formatPickerDisplay(value, false);
+        }
+      }).open();
+    });
+    setting.controlEl.createSpan({ cls: "frontmatter-kanban-date-range-arrow", text: "->" });
+    const end = setting.controlEl.createEl("button", {
+      type: "button",
+      cls: "frontmatter-kanban-date-picker-trigger",
+      text: formatPickerDisplay(this.values[endKey], false)
+    });
+    end.addEventListener("click", () => {
+      new DatePickerModal(this.app, {
+        title: `${label} end`,
+        value: this.values[endKey],
+        onApply: (value) => {
+          this.values[endKey] = value;
+          end.textContent = formatPickerDisplay(value, false);
+        }
+      }).open();
     });
   }
   renderNotificationSetting(container) {
@@ -563,23 +769,57 @@ var CreateTaskModal = class extends import_obsidian.Modal {
   }
   renderDateTimeSetting(container, label, key) {
     const setting = new import_obsidian.Setting(container).setName(label);
-    const input = setting.controlEl.createEl("input", { type: "datetime-local" });
-    input.value = formatDateTimeForInput(this.values[key]);
-    input.addEventListener("change", () => {
-      this.values[key] = readDateInputAsIso(input.value);
+    setting.controlEl.addClass("frontmatter-kanban-date-picker-control");
+    const button = setting.controlEl.createEl("button", {
+      type: "button",
+      cls: "frontmatter-kanban-date-picker-trigger",
+      text: formatPickerDisplay(this.values[key], true)
+    });
+    button.addEventListener("click", () => {
+      new DatePickerModal(this.app, {
+        title: label,
+        value: this.values[key],
+        includeTime: true,
+        onApply: (value) => {
+          this.values[key] = value;
+          button.textContent = formatPickerDisplay(value, true);
+        }
+      }).open();
     });
   }
   renderDateRangeSetting(container, label, startKey, endKey) {
     const setting = new import_obsidian.Setting(container).setName(label);
-    const start = setting.controlEl.createEl("input", { type: "date" });
-    start.value = formatDateForInput(this.values[startKey]);
-    start.addEventListener("change", () => {
-      this.values[startKey] = start.value;
+    setting.controlEl.addClass("frontmatter-kanban-date-range-control");
+    const start = setting.controlEl.createEl("button", {
+      type: "button",
+      cls: "frontmatter-kanban-date-picker-trigger",
+      text: formatPickerDisplay(this.values[startKey], false)
     });
-    const end = setting.controlEl.createEl("input", { type: "date" });
-    end.value = formatDateForInput(this.values[endKey]);
-    end.addEventListener("change", () => {
-      this.values[endKey] = end.value;
+    start.addEventListener("click", () => {
+      new DatePickerModal(this.app, {
+        title: `${label} start`,
+        value: this.values[startKey],
+        onApply: (value) => {
+          this.values[startKey] = value;
+          start.textContent = formatPickerDisplay(value, false);
+        }
+      }).open();
+    });
+    setting.controlEl.createSpan({ cls: "frontmatter-kanban-date-range-arrow", text: "->" });
+    const end = setting.controlEl.createEl("button", {
+      type: "button",
+      cls: "frontmatter-kanban-date-picker-trigger",
+      text: formatPickerDisplay(this.values[endKey], false)
+    });
+    end.addEventListener("click", () => {
+      new DatePickerModal(this.app, {
+        title: `${label} end`,
+        value: this.values[endKey],
+        onApply: (value) => {
+          this.values[endKey] = value;
+          end.textContent = formatPickerDisplay(value, false);
+        }
+      }).open();
     });
   }
   renderNotificationSetting(container) {
@@ -1244,6 +1484,7 @@ function ensureFrontmatterTag(frontmatter, tag) {
 // src/plugin.ts
 var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
   async onload() {
+    await this.loadStyles();
     await this.loadSettings();
     this.registerBasesIntegration();
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
@@ -1277,6 +1518,22 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     await this.migrateLegacyTaskTags();
     this.syncDerivedFields();
     this.checkNotifications();
+  }
+  async loadStyles() {
+    var _a;
+    const styleId = `${this.manifest.id}-managed-styles`;
+    (_a = document.getElementById(styleId)) == null ? void 0 : _a.remove();
+    const stylePath = (0, import_obsidian4.normalizePath)(`${this.manifest.dir || ""}/styles.css`);
+    try {
+      const css = await this.app.vault.adapter.read(stylePath);
+      const styleEl = document.createElement("style");
+      styleEl.id = styleId;
+      styleEl.textContent = css;
+      document.head.appendChild(styleEl);
+      this.register(() => styleEl.remove());
+    } catch (error) {
+      console.warn(`Failed to load ${stylePath}`, error);
+    }
   }
   async loadSettings() {
     const savedSettings = await this.loadData() || {};
