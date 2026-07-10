@@ -282,13 +282,13 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const folder = this.getTaskFolder();
     await this.ensureFolder(folder);
 
-    const sanitizedTitle = sanitizeFileName(values.title);
-    if (!sanitizedTitle) {
+    const taskTitle = String(values.title || "").trim();
+    if (!taskTitle) {
       new Notice("Task title is required.");
       return;
     }
 
-    const path = this.getNewTaskPath(folder, sanitizedTitle);
+    const path = this.getNewTaskPath(folder, taskTitle);
     const preparedValues = await this.prepareTaskReferences(values, path);
     if (!preparedValues) return false;
 
@@ -336,16 +336,55 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     return true;
   }
 
-  getNewTaskPath(folder, sanitizedTitle) {
-    const prefix = formatTimestampForFileName();
-    const baseName = `${prefix} - ${sanitizedTitle}`;
+  getTaskFileBaseName(title, timestamp = new Date()) {
+    const sanitizedTitle = sanitizeFileName(title);
+    const safeTitle = sanitizedTitle || "Untitled task";
+    return `${safeTitle} (${this.formatTaskFileTimestamp(timestamp)})`;
+  }
+
+  formatTaskFileTimestamp(timestamp) {
+    if (typeof timestamp === "string") {
+      const parsed = timestamp.trim().match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2})[-:](\d{2})(?:[-:](\d{2}))?)?$/);
+      if (parsed) {
+        const hour = parsed[2] || "00";
+        const minute = parsed[3] || "00";
+        const second = parsed[4] || "00";
+        return `${parsed[1]} ${hour}-${minute}-${second}`;
+      }
+    }
+
+    return formatTimestampForFileName(timestamp);
+  }
+
+  getTaskFileTimestamp(file, frontmatter = {}) {
+    const basename = String(file?.basename || "");
+    const titledTimestamp = basename.match(/^.+\s+\((\d{4}-\d{2}-\d{2}(?:[ T]\d{2}[-:]\d{2}(?:[-:]\d{2})?)?)\)$/);
+    if (titledTimestamp) return titledTimestamp[1];
+
+    const leadingTimestamp = basename.match(/^(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}[-:]\d{2}(?:[-:]\d{2})?)?)\s+-\s+.+$/);
+    if (leadingTimestamp) return leadingTimestamp[1];
+
+    return frontmatter.created || file?.stat?.ctime || new Date();
+  }
+
+  getUniqueTaskPath(folder, baseName, currentPath = "") {
     let path = normalizePath(`${folder}/${baseName}.md`);
     let counter = 2;
-    while (this.app.vault.getAbstractFileByPath(path)) {
+    while (path !== currentPath && this.app.vault.getAbstractFileByPath(path)) {
       path = normalizePath(`${folder}/${baseName} ${counter}.md`);
       counter += 1;
     }
     return path;
+  }
+
+  getNewTaskPath(folder, title) {
+    return this.getUniqueTaskPath(folder, this.getTaskFileBaseName(title));
+  }
+
+  getRenamedTaskPath(file, title, frontmatter = {}) {
+    const folder = file.parent ? file.parent.path : this.getTaskFolder();
+    const baseName = this.getTaskFileBaseName(title, this.getTaskFileTimestamp(file, frontmatter));
+    return this.getUniqueTaskPath(folder, baseName, file.path);
   }
 
   async ensureFolder(folderPath) {
@@ -667,6 +706,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   async updateTask(file, values) {
     const preparedValues = await this.prepareTaskReferences(values, file.path);
     if (!preparedValues) return false;
+    const currentFrontmatter = Object.assign({}, this.app.metadataCache.getFileCache(file)?.frontmatter || {});
 
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       ensureFrontmatterTag(frontmatter, TASK_TAG);
@@ -741,6 +781,19 @@ export default class FrontmatterKanbanPlugin extends Plugin {
         }
       }
     });
+
+    const nextPath = this.getRenamedTaskPath(file, preparedValues.title, currentFrontmatter);
+    if (nextPath !== file.path) {
+      try {
+        await this.app.vault.rename(file, nextPath);
+      } catch (error) {
+        console.error("Failed to rename task file", error);
+        new Notice("Task updated, but the file could not be renamed.");
+        this.refreshViews();
+        return false;
+      }
+    }
+
     new Notice("Task updated.");
     this.refreshViews();
     return true;

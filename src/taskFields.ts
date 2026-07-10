@@ -7,6 +7,9 @@ export function getTaskTitle(task) {
   if (title) return title;
 
   const basename = String(task.file.basename || "").trim();
+  const titledTimestamp = basename.match(/^(.+)\s+\(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}[-:]\d{2}(?:[-:]\d{2})?)?\)$/);
+  if (titledTimestamp) return titledTimestamp[1].trim() || "Untitled task";
+
   const timestampedTitle = basename.match(/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}[-:]\d{2}(?:[-:]\d{2})?)?\s+-\s+(.+)$/);
   return (timestampedTitle ? timestampedTitle[1].trim() : basename) || "Untitled task";
 }
