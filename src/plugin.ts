@@ -2,9 +2,9 @@ import { Notice, Plugin, TFile, normalizePath, stringifyYaml } from "obsidian";
 import {
   BASES_KANBAN_VIEW_TYPE,
   DEFAULT_SETTINGS,
-  DEFAULT_BASES_VIEW_FOLDER,
   DEFAULT_KANBAN_BASE_FILE,
   FIELD_TYPES,
+  LEGACY_TASK_TAG,
   TASK_TAG,
 } from "./constants";
 import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
@@ -84,6 +84,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       clone(DEFAULT_SETTINGS.createFormFields),
       this.settings.createFormFields || {}
     );
+    this.settings.baseFilePath = normalizePath(this.settings.baseFilePath || DEFAULT_SETTINGS.baseFilePath);
+    this.settings.projectFolder = normalizePath(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
+    delete this.settings.featureFolder;
   }
 
   async saveSettings() {
@@ -133,8 +136,10 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   getKanbanBasePath() {
-    const folder = normalizePath(this.settings.taskFolder || "Tasks");
-    return normalizePath(`${folder}/${DEFAULT_BASES_VIEW_FOLDER}/${DEFAULT_KANBAN_BASE_FILE}`);
+    const configured = normalizePath(this.settings.baseFilePath || DEFAULT_KANBAN_BASE_FILE);
+    if (!configured) return DEFAULT_KANBAN_BASE_FILE;
+    if (configured.endsWith(".base")) return configured;
+    return normalizePath(`${configured}/${DEFAULT_KANBAN_BASE_FILE}`);
   }
 
   async ensureKanbanBaseFile() {
@@ -147,19 +152,36 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
-    return this.app.vault.create(path, generateDefaultKanbanBase());
+    return this.createMarkdownFile(path, generateDefaultKanbanBase());
   }
 
   async migrateKanbanBaseFile(file) {
     const contents = await this.app.vault.cachedRead(file);
-    if (!contents.includes("kanban_task")) return;
+    let nextContents = contents;
 
-    const nextContents = contents.replace(
-      /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
-      `filters:\n  and:\n    - file.hasTag("${TASK_TAG}")`
+    if (nextContents.includes("kanban_task")) {
+      nextContents = nextContents.replace(
+        /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
+        `filters:\n  and:\n    - note.tags.contains("${TASK_TAG}")`
+      );
+    }
+
+    nextContents = nextContents.replace(
+      new RegExp(`file\\.hasTag\\("${LEGACY_TASK_TAG}"\\)`, "g"),
+      `note.tags.contains("${TASK_TAG}")`
+    );
+    nextContents = nextContents.replace(
+      new RegExp(`file\\.hasTag\\("${TASK_TAG}"\\)`, "g"),
+      `note.tags.contains("${TASK_TAG}")`
+    );
+    nextContents = nextContents.replace(
+      new RegExp(`note\\.tags\\.contains\\("${LEGACY_TASK_TAG}"\\)`, "g"),
+      `note.tags.contains("${TASK_TAG}")`
     );
 
-    await this.app.vault.modify(file, nextContents === contents ? generateDefaultKanbanBase() : nextContents);
+    if (nextContents === contents) return;
+
+    await this.app.vault.modify(file, nextContents);
   }
 
   refreshViews() {
@@ -181,7 +203,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   isLegacyTaskFrontmatter(frontmatter) {
-    return frontmatter && (frontmatter.kanban_task === true || frontmatter.kanban_task === "true");
+    if (!frontmatter) return false;
+    if (frontmatter.kanban_task === true || frontmatter.kanban_task === "true") return true;
+    return !hasFrontmatterTag(frontmatter, TASK_TAG) && hasFrontmatterTag(frontmatter, LEGACY_TASK_TAG);
   }
 
   isTaskFrontmatter(frontmatter) {
@@ -217,24 +241,29 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
 
     const path = this.getNewTaskPath(folder, sanitizedTitle);
+    const preparedValues = await this.prepareTaskReferences(values, path);
+    if (!preparedValues) return false;
 
     const frontmatter = {
       tags: [TASK_TAG],
-      title: values.title,
-      status: values.status || this.settings.statuses[0] || "backlog",
+      title: preparedValues.title.trim(),
+      status: this.normalizeTaskStatus(preparedValues.status),
       created: nowIso()
     };
 
-    if (values.priority) {
-      frontmatter.priority = values.priority;
-      frontmatter.priority_weight = getPriorityWeight(values.priority);
+    if (preparedValues.project) frontmatter.project = preparedValues.project;
+    if (preparedValues.feature) frontmatter.feature = preparedValues.feature;
+
+    if (preparedValues.priority) {
+      frontmatter.priority = preparedValues.priority;
+      frontmatter.priority_weight = getPriorityWeight(preparedValues.priority);
     }
-    if (values.due) frontmatter.due = values.due;
-    if (values.work_start) frontmatter.work_start = values.work_start;
-    if (values.work_end) frontmatter.work_end = values.work_end;
-    if (values.notification_amount !== undefined && values.notification_amount !== "") {
-      frontmatter.notification_amount = Number(values.notification_amount);
-      frontmatter.notification_unit = values.notification_unit || "days";
+    if (preparedValues.due) frontmatter.due = preparedValues.due;
+    if (preparedValues.work_start) frontmatter.work_start = preparedValues.work_start;
+    if (preparedValues.work_end) frontmatter.work_end = preparedValues.work_end;
+    if (preparedValues.notification_amount !== undefined && preparedValues.notification_amount !== "") {
+      frontmatter.notification_amount = Number(preparedValues.notification_amount);
+      frontmatter.notification_unit = preparedValues.notification_unit || "days";
     }
 
     if (isDoneStatus(frontmatter.status)) {
@@ -243,19 +272,20 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     for (const field of this.settings.customFields) {
       if (field.type === "date-range") {
-        if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
-        if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
-      } else if (field.type === "checkbox" && values[field.id] !== undefined && values[field.id] !== "") {
-        frontmatter[field.id] = values[field.id] === true || values[field.id] === "true";
-      } else if (values[field.id] !== undefined && values[field.id] !== "") {
-        frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
+        if (preparedValues[`${field.id}_start`]) frontmatter[`${field.id}_start`] = preparedValues[`${field.id}_start`];
+        if (preparedValues[`${field.id}_end`]) frontmatter[`${field.id}_end`] = preparedValues[`${field.id}_end`];
+      } else if (field.type === "checkbox" && preparedValues[field.id] !== undefined && preparedValues[field.id] !== "") {
+        frontmatter[field.id] = preparedValues[field.id] === true || preparedValues[field.id] === "true";
+      } else if (preparedValues[field.id] !== undefined && preparedValues[field.id] !== "") {
+        frontmatter[field.id] = field.type === "number" ? Number(preparedValues[field.id]) : preparedValues[field.id];
       }
     }
 
     const yaml = stringifyYaml(frontmatter).trim();
-    await this.app.vault.create(path, `---\n${yaml}\n---\n\n# ${values.title}\n`);
+    await this.createMarkdownFile(path, `---\n${yaml}\n---\n\n# ${preparedValues.title}\n`);
     new Notice("Task created.");
     this.refreshViews();
+    return true;
   }
 
   getNewTaskPath(folder, sanitizedTitle) {
@@ -277,18 +307,83 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     let current = "";
     for (const part of parts) {
       current = current ? `${current}/${part}` : part;
-      if (!this.app.vault.getAbstractFileByPath(current)) {
-        await this.app.vault.createFolder(current);
+      const existing = this.app.vault.getAbstractFileByPath(current);
+      if (!existing) {
+        try {
+          await this.app.vault.createFolder(current);
+        } catch (error) {
+          const created = this.app.vault.getAbstractFileByPath(current);
+          if (created instanceof TFile) {
+            throw new Error(`Cannot create folder "${current}" because a file already exists at that path.`);
+          }
+          if (!created) throw error;
+        }
+      } else if (existing instanceof TFile) {
+        throw new Error(`Cannot create folder "${current}" because a file already exists at that path.`);
       }
     }
   }
 
+  getDefaultStatus() {
+    return this.settings.statuses[0] || "backlog";
+  }
+
+  normalizeTaskStatus(status) {
+    const cleaned = cleanStatus(status);
+    if (!cleaned || cleaned.toLowerCase() === "null" || cleaned.toLowerCase() === "undefined") {
+      return this.getDefaultStatus();
+    }
+    return cleaned;
+  }
+
+  async createMarkdownFile(path, contents) {
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) return existing;
+    if (existing) {
+      throw new Error(`Cannot create file "${path}" because another item already exists at that path.`);
+    }
+
+    try {
+      return await this.app.vault.create(path, contents);
+    } catch (error) {
+      const created = this.app.vault.getAbstractFileByPath(path);
+      if (created instanceof TFile) return created;
+      throw error;
+    }
+  }
+
+  async createUniqueMarkdownFile(folder, sanitizedName, contents) {
+    let path = normalizePath(`${folder}/${sanitizedName}.md`);
+    let counter = 2;
+    while (this.app.vault.getAbstractFileByPath(path)) {
+      path = normalizePath(`${folder}/${sanitizedName} ${counter}.md`);
+      counter += 1;
+    }
+    return this.createMarkdownFile(path, contents);
+  }
+
+  async ensureReferenceFile(folder, name) {
+    const sanitizedName = sanitizeFileName(name);
+    if (!sanitizedName) return null;
+
+    await this.ensureFolder(folder);
+    const path = normalizePath(`${folder}/${sanitizedName}.md`);
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) return existing;
+    if (existing) {
+      return this.createUniqueMarkdownFile(folder, sanitizedName, `# ${name}\n`);
+    }
+
+    return this.createMarkdownFile(path, `# ${name}\n`);
+  }
+
   async updateTaskStatus(file, status) {
+    const nextStatus = this.normalizeTaskStatus(status);
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       ensureFrontmatterTag(frontmatter, TASK_TAG);
       delete frontmatter.kanban_task;
-      frontmatter.status = status;
-      if (isDoneStatus(status)) {
+      frontmatter.status = nextStatus;
+      if (isDoneStatus(nextStatus)) {
         if (!frontmatter.completed) frontmatter.completed = nowIso();
       } else {
         delete frontmatter.completed;
@@ -357,33 +452,206 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     return true;
   }
 
+  getReferenceFiles(kind, projectValue = "", sourcePath = "") {
+    if (kind === "feature") {
+      const projectFile = this.findProjectFile(projectValue, sourcePath);
+      if (!projectFile) return [];
+      const featureFolder = this.getFeatureFolderForProject(projectFile);
+      return this.app.vault.getMarkdownFiles()
+        .filter((file) => file.path.startsWith(`${featureFolder}/`))
+        .sort((left, right) => left.basename.localeCompare(right.basename));
+    }
+
+    const folder = this.getProjectFolder();
+    return this.app.vault.getMarkdownFiles()
+      .filter((file) => !folder || file.path === folder || file.path.startsWith(`${folder}/`))
+      .filter((file) => !file.path.includes("/Features/"))
+      .sort((left, right) => left.basename.localeCompare(right.basename));
+  }
+
+  getReferenceFolder(kind, projectValue = "", sourcePath = "") {
+    if (kind === "feature") {
+      const projectFile = this.findProjectFile(projectValue, sourcePath);
+      return projectFile ? this.getFeatureFolderForProject(projectFile) : "";
+    }
+    return this.getProjectFolder();
+  }
+
+  getNoteLink(file, sourcePath = "") {
+    return this.app.fileManager.generateMarkdownLink(file, sourcePath || this.getKanbanBasePath());
+  }
+
+  getProjectFolder() {
+    return normalizePath(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
+  }
+
+  getFeatureFolderForProject(projectFile) {
+    return normalizePath(`${projectFile.path.replace(/\.md$/i, "")}/Features`);
+  }
+
+  getReferenceInputTarget(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+
+    const wiki = text.match(/^\[\[([^|\]#]+)(?:#[^|\]]+)?(?:\|[^\]]+)?\]\]$/);
+    if (wiki) return wiki[1].trim();
+
+    const markdown = text.match(/^\[[^\]]+\]\(([^)]+)\)$/);
+    if (markdown) return markdown[1].replace(/\.md$/i, "").trim();
+
+    return text;
+  }
+
+  getReferenceName(value) {
+    const target = this.getReferenceInputTarget(value);
+    if (!target) return "";
+    return target.split("/").pop().replace(/\.md$/i, "").trim();
+  }
+
+  findLinkedFile(value, sourcePath = "") {
+    const target = this.getReferenceInputTarget(value);
+    if (!target) return null;
+    return this.app.metadataCache.getFirstLinkpathDest(target, sourcePath || this.getKanbanBasePath());
+  }
+
+  findProjectFile(value, sourcePath = "") {
+    const linked = this.findLinkedFile(value, sourcePath);
+    if (linked instanceof TFile && linked.path.startsWith(`${this.getProjectFolder()}/`) && !linked.path.includes("/Features/")) {
+      return linked;
+    }
+
+    const name = this.getReferenceName(value).toLowerCase();
+    if (!name) return null;
+    return this.getReferenceFiles("project")
+      .find((file) => file.basename.toLowerCase() === name) || null;
+  }
+
+  findFeatureFile(value, projectFile, sourcePath = "") {
+    const featureFolder = this.getFeatureFolderForProject(projectFile);
+    const linked = this.findLinkedFile(value, sourcePath);
+    if (linked instanceof TFile && linked.path.startsWith(`${featureFolder}/`)) {
+      return linked;
+    }
+
+    const name = this.getReferenceName(value).toLowerCase();
+    if (!name) return null;
+    return this.getReferenceFiles("feature", this.getNoteLink(projectFile, sourcePath), sourcePath)
+      .find((file) => file.basename.toLowerCase() === name) || null;
+  }
+
+  async resolveProjectReference(value, sourcePath) {
+    if (!String(value || "").trim()) return { link: "", file: null };
+
+    const existing = this.findProjectFile(value, sourcePath);
+    if (existing) return { link: this.getNoteLink(existing, sourcePath), file: existing };
+
+    const name = this.getReferenceName(value);
+    const file = await this.ensureReferenceFile(this.getProjectFolder(), name);
+    if (!file) {
+      new Notice("Project name is required.");
+      return null;
+    }
+    return { link: this.getNoteLink(file, sourcePath), file };
+  }
+
+  async resolveFeatureReference(value, projectFile, sourcePath) {
+    if (!String(value || "").trim()) return "";
+    if (!projectFile) {
+      new Notice("Create or select a project before adding a feature.");
+      return null;
+    }
+
+    const existing = this.findFeatureFile(value, projectFile, sourcePath);
+    if (existing) return this.getNoteLink(existing, sourcePath);
+
+    const name = this.getReferenceName(value);
+    const file = await this.ensureReferenceFile(this.getFeatureFolderForProject(projectFile), name);
+    if (!file) {
+      new Notice("Feature name is required.");
+      return null;
+    }
+    return this.getNoteLink(file, sourcePath);
+  }
+
+  async prepareTaskReferences(values, sourcePath) {
+    const prepared = Object.assign({}, values);
+    const project = await this.resolveProjectReference(prepared.project, sourcePath);
+    if (!project) return null;
+
+    const feature = await this.resolveFeatureReference(prepared.feature, project.file, sourcePath);
+    if (feature === null) return null;
+
+    prepared.project = project.link;
+    prepared.feature = feature;
+    return prepared;
+  }
+
+  async getTaskTodoStats(file) {
+    const contents = await this.app.vault.cachedRead(file);
+    const todoPattern = /^\s*[-*+]\s+\[([ xX])\]\s+/gm;
+    let total = 0;
+    let completed = 0;
+    let match;
+
+    while ((match = todoPattern.exec(contents)) !== null) {
+      total += 1;
+      if (String(match[1]).toLowerCase() === "x") completed += 1;
+    }
+
+    return { completed, total };
+  }
+
+  async deleteTask(file) {
+    const confirmed = window.confirm(`Delete "${file.basename}"?`);
+    if (!confirmed) return false;
+
+    try {
+      await this.app.vault.trash(file, true);
+    } catch (error) {
+      await this.app.vault.trash(file, false);
+    }
+
+    new Notice("Task deleted.");
+    this.refreshViews();
+    return true;
+  }
+
   async updateTask(file, values) {
+    const preparedValues = await this.prepareTaskReferences(values, file.path);
+    if (!preparedValues) return false;
+
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       ensureFrontmatterTag(frontmatter, TASK_TAG);
       delete frontmatter.kanban_task;
-      frontmatter.title = values.title.trim();
-      frontmatter.status = values.status || this.settings.statuses[0] || "backlog";
+      frontmatter.title = preparedValues.title.trim();
+      frontmatter.status = this.normalizeTaskStatus(preparedValues.status);
 
-      if (values.priority) {
-        frontmatter.priority = values.priority;
-        frontmatter.priority_weight = getPriorityWeight(values.priority);
+      if (preparedValues.project) frontmatter.project = preparedValues.project;
+      else delete frontmatter.project;
+
+      if (preparedValues.feature) frontmatter.feature = preparedValues.feature;
+      else delete frontmatter.feature;
+
+      if (preparedValues.priority) {
+        frontmatter.priority = preparedValues.priority;
+        frontmatter.priority_weight = getPriorityWeight(preparedValues.priority);
       } else {
         delete frontmatter.priority;
         delete frontmatter.priority_weight;
       }
 
-      if (values.due) frontmatter.due = values.due;
+      if (preparedValues.due) frontmatter.due = preparedValues.due;
       else delete frontmatter.due;
 
-      if (values.work_start) frontmatter.work_start = values.work_start;
+      if (preparedValues.work_start) frontmatter.work_start = preparedValues.work_start;
       else delete frontmatter.work_start;
 
-      if (values.work_end) frontmatter.work_end = values.work_end;
+      if (preparedValues.work_end) frontmatter.work_end = preparedValues.work_end;
       else delete frontmatter.work_end;
 
-      if (values.notification_amount !== undefined && values.notification_amount !== "") {
-        frontmatter.notification_amount = Number(values.notification_amount);
-        frontmatter.notification_unit = values.notification_unit || "days";
+      if (preparedValues.notification_amount !== undefined && preparedValues.notification_amount !== "") {
+        frontmatter.notification_amount = Number(preparedValues.notification_amount);
+        frontmatter.notification_unit = preparedValues.notification_unit || "days";
       } else {
         delete frontmatter.notification_amount;
         delete frontmatter.notification_unit;
@@ -404,22 +672,22 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
       for (const field of this.settings.customFields) {
         if (field.type === "date-range") {
-          if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
+          if (preparedValues[`${field.id}_start`]) frontmatter[`${field.id}_start`] = preparedValues[`${field.id}_start`];
           else delete frontmatter[`${field.id}_start`];
 
-          if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
+          if (preparedValues[`${field.id}_end`]) frontmatter[`${field.id}_end`] = preparedValues[`${field.id}_end`];
           else delete frontmatter[`${field.id}_end`];
           continue;
         }
 
         if (field.type === "checkbox") {
-          if (values[field.id] === undefined) delete frontmatter[field.id];
-          else frontmatter[field.id] = values[field.id] === true || values[field.id] === "true";
+          if (preparedValues[field.id] === undefined) delete frontmatter[field.id];
+          else frontmatter[field.id] = preparedValues[field.id] === true || preparedValues[field.id] === "true";
           continue;
         }
 
-        if (values[field.id] !== undefined && values[field.id] !== "") {
-          frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
+        if (preparedValues[field.id] !== undefined && preparedValues[field.id] !== "") {
+          frontmatter[field.id] = field.type === "number" ? Number(preparedValues[field.id]) : preparedValues[field.id];
         } else {
           delete frontmatter[field.id];
         }
@@ -427,6 +695,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     });
     new Notice("Task updated.");
     this.refreshViews();
+    return true;
   }
 
   async syncCompletionDates() {

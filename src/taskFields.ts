@@ -3,7 +3,7 @@ import { isDoneStatus } from "./status";
 import { toDate } from "./utils/date";
 
 export function getTaskTitle(task) {
-  return task.frontmatter.title || task.file.basename;
+  return String(task.frontmatter.title || "").trim() || "Untitled task";
 }
 
 export function getPriorityWeight(priority) {
@@ -37,6 +37,8 @@ export function getFieldValue(task, fieldId) {
   const fm = task.frontmatter;
   if (fieldId === "title") return getTaskTitle(task);
   if (fieldId === "status") return fm.status || "";
+  if (fieldId === "project") return fm.project || "";
+  if (fieldId === "feature") return fm.feature || "";
   if (fieldId === "priority") return fm.priority || "";
   if (fieldId === "priority_weight") return fm.priority_weight ?? getPriorityWeight(fm.priority);
   if (fieldId === "due") return fm.due || "";
@@ -65,6 +67,8 @@ export function getFieldValue(task, fieldId) {
 export function getFieldType(plugin, fieldId) {
   if (fieldId === "title") return "text";
   if (fieldId === "status") return "select";
+  if (fieldId === "project") return "text";
+  if (fieldId === "feature") return "text";
   if (fieldId === "priority") return "priority";
   if (fieldId === "priority_weight") return "number";
   if (fieldId === "due") return "datetime";
@@ -116,6 +120,8 @@ export function getBuiltInFields() {
   return [
     { id: "title", name: "Title", type: "text" },
     { id: "status", name: "Status", type: "select" },
+    { id: "project", name: "Project", type: "text" },
+    { id: "feature", name: "Feature", type: "text" },
     { id: "priority", name: "Priority", type: "priority" },
     { id: "priority_weight", name: "Priority weight", type: "number" },
     { id: "due", name: "Due date", type: "datetime" },

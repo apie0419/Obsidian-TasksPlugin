@@ -10,7 +10,7 @@ function formatPriorityWeightFormula() {
 export function generateDefaultKanbanBase() {
   return `filters:
   and:
-    - file.hasTag("${TASK_TAG}")
+    - note.tags.contains("${TASK_TAG}")
 formulas:
   priorityWeight: ${formatPriorityWeightFormula()}
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
@@ -23,6 +23,8 @@ views:
       direction: ASC
     order:
       - note.status
+      - note.project
+      - note.feature
       - note.priority
       - formula.priorityWeight
       - note.due

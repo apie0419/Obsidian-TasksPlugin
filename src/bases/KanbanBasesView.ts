@@ -1,7 +1,7 @@
-import { BasesView, TFile, setIcon } from "obsidian";
+import { BasesView, ButtonComponent, Menu, TFile, setIcon } from "obsidian";
 import type { BasesViewFactory } from "obsidian";
 import { BASES_KANBAN_VIEW_TYPE } from "../constants";
-import { EditTaskModal } from "../modals/TaskModals";
+import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
 import { statusEquals } from "../status";
 import { getDueClass, getTaskTitle } from "../taskFields";
 import { formatDateLabel, formatDateTimeForInput, getWorkOnText } from "../utils/date";
@@ -17,13 +17,25 @@ const COLUMN_ACCENTS = [
 ];
 
 function valueToString(value) {
-  if (!value) return "";
+  if (value === undefined || value === null) return "";
   if (value.constructor && value.constructor.name === "NullValue") return "";
-  return String(value);
+  const text = String(value).trim();
+  if (text.toLowerCase() === "null" || text.toLowerCase() === "undefined") return "";
+  return text;
 }
 
 function getEntryFile(entry) {
   return entry && entry.file instanceof TFile ? entry.file : null;
+}
+
+function formatReferenceLabel(value) {
+  const text = String(value || "").trim();
+  const wikilink = text.match(/^\[\[(.+)\]\]$/);
+  if (!wikilink) return text;
+
+  const target = wikilink[1];
+  const alias = target.includes("|") ? target.split("|").pop() : target;
+  return alias.split("/").pop();
 }
 
 export class KanbanBasesView extends BasesView {
@@ -44,6 +56,14 @@ export class KanbanBasesView extends BasesView {
 
   onDataUpdated() {
     this.render();
+  }
+
+  async createFileForView() {
+    this.openCreateTaskModal();
+  }
+
+  openCreateTaskModal(initialValues = {}) {
+    new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
   }
 
   render() {
@@ -76,7 +96,7 @@ export class KanbanBasesView extends BasesView {
 
     if (groupedData.length > 1 || (groupedData[0] && groupedData[0].hasKey && groupedData[0].hasKey())) {
       return this.mergeConfiguredStatuses(groupedData.map((group) => ({
-        status: valueToString(group.key) || "No status",
+        status: this.normalizeStatus(valueToString(group.key)),
         entries: group.entries || []
       })));
     }
@@ -86,7 +106,7 @@ export class KanbanBasesView extends BasesView {
     for (const entry of entries) {
       const file = getEntryFile(entry);
       const frontmatter = file ? this.getFrontmatter(file) : {};
-      const status = frontmatter.status || valueToString(entry.getValue && entry.getValue("note.status")) || "No status";
+      const status = this.normalizeStatus(frontmatter.status || valueToString(entry.getValue && entry.getValue("note.status")));
       if (!groupsByStatus.has(status)) groupsByStatus.set(status, []);
       groupsByStatus.get(status).push(entry);
     }
@@ -95,6 +115,10 @@ export class KanbanBasesView extends BasesView {
       status,
       entries: statusEntries
     })));
+  }
+
+  normalizeStatus(value) {
+    return valueToString(value) || this.plugin.getDefaultStatus();
   }
 
   mergeConfiguredStatuses(groups) {
@@ -137,6 +161,11 @@ export class KanbanBasesView extends BasesView {
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
     title.createSpan({ text: status });
     title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(entries.length) });
+    new ButtonComponent(header)
+      .setIcon("plus")
+      .setTooltip(`New task in ${status}`)
+      .setClass("frontmatter-kanban-column-new")
+      .onClick(() => this.openCreateTaskModal({ status }));
 
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
     this.registerDomEvent(cards, "dragover", (event) => {
@@ -209,6 +238,15 @@ export class KanbanBasesView extends BasesView {
       }
       this.plugin.openTaskFile(task.file);
     });
+    this.registerDomEvent(card, "contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.cardClickTimer) {
+        window.clearTimeout(this.cardClickTimer);
+        this.cardClickTimer = null;
+      }
+      this.openTaskMenu(event, task);
+    });
 
     card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
 
@@ -217,9 +255,19 @@ export class KanbanBasesView extends BasesView {
       card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
     }
 
+    this.renderTodoProgress(card, task);
+
     const workOn = getWorkOnText(task.frontmatter);
-    if (task.frontmatter.priority || workOn) {
+    const project = formatReferenceLabel(task.frontmatter.project);
+    const feature = formatReferenceLabel(task.frontmatter.feature);
+    if (task.frontmatter.priority || workOn || project || feature) {
       const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
+      if (project) {
+        meta.createSpan({ cls: "frontmatter-kanban-card-reference", text: `Project ${project}` });
+      }
+      if (feature) {
+        meta.createSpan({ cls: "frontmatter-kanban-card-reference", text: `Feature ${feature}` });
+      }
       if (task.frontmatter.priority) {
         meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
       }
@@ -241,6 +289,51 @@ export class KanbanBasesView extends BasesView {
         completed.createSpan({ text: formatDateLabel(task.frontmatter.completed) });
       }
     }
+  }
+
+  renderTodoProgress(card, task) {
+    const todo = card.createDiv({ cls: "frontmatter-kanban-card-todos is-loading" });
+    this.plugin.getTaskTodoStats(task.file)
+      .then((stats) => {
+        if (!todo.isConnected) return;
+        todo.empty();
+        todo.removeClass("is-loading");
+
+        if (!stats.total) {
+          todo.detach();
+          return;
+        }
+
+        const progress = todo.createDiv({ cls: "frontmatter-kanban-card-todo-progress" });
+        const fill = progress.createDiv({ cls: "frontmatter-kanban-card-todo-progress-fill" });
+        fill.style.width = `${Math.round((stats.completed / stats.total) * 100)}%`;
+        todo.createSpan({
+          cls: "frontmatter-kanban-card-todo-count",
+          text: `${stats.completed}/${stats.total}`
+        });
+      })
+      .catch(() => {
+        todo.detach();
+      });
+  }
+
+  openTaskMenu(event, task) {
+    const menu = new Menu();
+    menu.addItem((item) => item
+      .setTitle("Edit task")
+      .setIcon("pencil")
+      .onClick(() => new EditTaskModal(this.plugin.app, this.plugin, task).open()));
+    menu.addItem((item) => item
+      .setTitle("Open note")
+      .setIcon("file-text")
+      .onClick(() => this.plugin.openTaskFile(task.file)));
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle("Delete task")
+      .setIcon("trash-2")
+      .setWarning(true)
+      .onClick(() => this.plugin.deleteTask(task.file)));
+    menu.showAtMouseEvent(event);
   }
 
   getCardSummary(task) {

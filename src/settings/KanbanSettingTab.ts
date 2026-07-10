@@ -17,7 +17,27 @@ export class KanbanSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: "Kanban Board" });
 
-    new Setting(containerEl)
+    this.renderStorage(containerEl);
+    this.renderCreateFormFields(containerEl);
+    this.renderStatuses(containerEl);
+    this.renderCustomFields(containerEl);
+  }
+
+  renderSection(container, title, desc = "") {
+    const section = container.createEl("details", { cls: "frontmatter-kanban-settings-section" });
+    section.open = true;
+    const summary = section.createEl("summary");
+    summary.createSpan({ cls: "frontmatter-kanban-settings-section-title", text: title });
+    if (desc) {
+      summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: desc });
+    }
+    return section;
+  }
+
+  renderStorage(container) {
+    const section = this.renderSection(container, "Storage", "Folders and Base file location");
+
+    new Setting(section)
       .setName("Task folder")
       .setDesc("Markdown task notes are created and read from this folder.")
       .addText((text) => text
@@ -28,14 +48,33 @@ export class KanbanSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    this.renderStatuses(containerEl);
-    this.renderCreateFormFields(containerEl);
-    this.renderCustomFields(containerEl);
+    new Setting(section)
+      .setName("Kanban Base file")
+      .setDesc("Path for the .base file opened by the Kanban Board command.")
+      .addText((text) => text
+        .setPlaceholder("Kanban.base")
+        .setValue(this.plugin.settings.baseFilePath)
+        .onChange(async (value) => {
+          this.plugin.settings.baseFilePath = value.trim() || "Kanban.base";
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(section)
+      .setName("Project folder")
+      .setDesc("Project notes are created and picked from this folder. Feature notes live inside each project folder.")
+      .addText((text) => text
+        .setPlaceholder("Projects")
+        .setValue(this.plugin.settings.projectFolder)
+        .onChange(async (value) => {
+          this.plugin.settings.projectFolder = value.trim() || "Projects";
+          await this.plugin.saveSettings();
+        }));
   }
 
   renderStatuses(container) {
-    container.createEl("h3", { text: "Statuses" });
-    const list = container.createDiv({ cls: "frontmatter-kanban-settings-list" });
+    const section = this.renderSection(container, "Statuses", "Columns shown on the Kanban board");
+    const containerEl = section;
+    const list = containerEl.createDiv({ cls: "frontmatter-kanban-settings-list" });
     for (const status of this.plugin.settings.statuses) {
       const row = list.createDiv({ cls: "frontmatter-kanban-settings-row frontmatter-kanban-status-row" });
       const input = new TextComponent(row).setValue(status);
@@ -55,7 +94,7 @@ export class KanbanSettingTab extends PluginSettingTab {
         });
     }
 
-    const addRow = container.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
+    const addRow = containerEl.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
     const input = new TextComponent(addRow).setPlaceholder("New status");
     new ButtonComponent(addRow)
       .setButtonText("Add status")
@@ -76,16 +115,18 @@ export class KanbanSettingTab extends PluginSettingTab {
   }
 
   renderCreateFormFields(container) {
-    container.createEl("h3", { text: "Create task form" });
+    const section = this.renderSection(container, "Task form", "Fields shown when creating tasks");
     const options = [
       ["status", "Status"],
       ["priority", "Priority"],
+      ["project", "Project"],
+      ["feature", "Feature"],
       ["due", "Due date"],
       ["workOn", "Work on"],
       ["notification", "Notification"]
     ];
     for (const [key, label] of options) {
-      new Setting(container)
+      new Setting(section)
         .setName(label)
         .addToggle((toggle) => toggle
           .setValue(Boolean(this.plugin.settings.createFormFields[key]))
@@ -97,14 +138,14 @@ export class KanbanSettingTab extends PluginSettingTab {
   }
 
   renderCustomFields(container) {
-    container.createEl("h3", { text: "Custom fields" });
-    const list = container.createDiv({ cls: "frontmatter-kanban-settings-list" });
+    const section = this.renderSection(container, "Custom fields", "Additional frontmatter fields");
+    const list = section.createDiv({ cls: "frontmatter-kanban-settings-list" });
     for (const field of this.plugin.settings.customFields) {
       this.renderCustomFieldRow(list, field);
     }
 
-    container.createEl("h4", { text: "Add field" });
-    const add = container.createDiv({ cls: "frontmatter-kanban-custom-field-editor" });
+    section.createEl("h4", { text: "Add field" });
+    const add = section.createDiv({ cls: "frontmatter-kanban-custom-field-editor" });
     const name = new TextComponent(add).setPlaceholder("Name");
     const type = new DropdownComponent(add);
     for (const fieldType of FIELD_TYPES) {

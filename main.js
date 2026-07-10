@@ -28,10 +28,10 @@ var import_obsidian4 = require("obsidian");
 
 // src/constants.ts
 var BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
-var DEFAULT_BASES_VIEW_FOLDER = "Views";
-var DEFAULT_KANBAN_BASE_FILE = "kanban.base";
+var DEFAULT_KANBAN_BASE_FILE = "Kanban.base";
 var DONE_STATUS = "done";
-var TASK_TAG = "tasks";
+var TASK_TAG = "task";
+var LEGACY_TASK_TAG = "tasks";
 var BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
 var PRIORITIES = ["high", "medium", "easy", "low"];
 var PRIORITY_WEIGHTS = {
@@ -42,10 +42,14 @@ var PRIORITY_WEIGHTS = {
 };
 var DEFAULT_SETTINGS = {
   taskFolder: "Tasks",
+  baseFilePath: DEFAULT_KANBAN_BASE_FILE,
+  projectFolder: "Projects",
   statuses: [...BUILT_IN_STATUSES],
   createFormFields: {
     status: true,
     priority: true,
+    project: true,
+    feature: true,
     due: true,
     workOn: true,
     notification: true
@@ -146,7 +150,7 @@ function getWorkOnText(frontmatter) {
 
 // src/taskFields.ts
 function getTaskTitle(task) {
-  return task.frontmatter.title || task.file.basename;
+  return String(task.frontmatter.title || "").trim() || "Untitled task";
 }
 function getPriorityWeight(priority) {
   return PRIORITY_WEIGHTS[String(priority || "").toLowerCase()] || 0;
@@ -176,6 +180,8 @@ function getBuiltInFields() {
   return [
     { id: "title", name: "Title", type: "text" },
     { id: "status", name: "Status", type: "select" },
+    { id: "project", name: "Project", type: "text" },
+    { id: "feature", name: "Feature", type: "text" },
     { id: "priority", name: "Priority", type: "priority" },
     { id: "priority_weight", name: "Priority weight", type: "number" },
     { id: "due", name: "Due date", type: "datetime" },
@@ -222,6 +228,71 @@ function formatTaskInfoDate(value) {
     hour12: false
   }).replace(/, (?=\d{2}:\d{2}$)/, " ");
 }
+function getReferenceLabel(kind) {
+  return kind === "feature" ? "feature" : "project";
+}
+var ReferenceNoteSuggestModal = class extends import_obsidian.SuggestModal {
+  constructor(app, plugin, kind, sourcePath, projectValue, onChoose) {
+    super(app);
+    this.plugin = plugin;
+    this.kind = kind;
+    this.sourcePath = sourcePath;
+    this.projectValue = projectValue;
+    this.onChoose = onChoose;
+    this.limit = 50;
+    this.emptyStateText = `No ${getReferenceLabel(kind)} notes found.`;
+    this.setPlaceholder(`Search ${getReferenceLabel(kind)} notes`);
+  }
+  getSuggestions(query) {
+    const normalizedQuery = query.trim().toLowerCase();
+    return this.plugin.getReferenceFiles(this.kind, this.projectValue, this.sourcePath).filter((file) => {
+      if (!normalizedQuery) return true;
+      return file.basename.toLowerCase().includes(normalizedQuery) || file.path.toLowerCase().includes(normalizedQuery);
+    });
+  }
+  renderSuggestion(file, el) {
+    el.createDiv({ cls: "frontmatter-kanban-suggestion-title", text: file.basename });
+    el.createDiv({ cls: "frontmatter-kanban-suggestion-path", text: file.path });
+  }
+  onChooseSuggestion(file) {
+    this.onChoose(this.plugin.getNoteLink(file, this.sourcePath));
+  }
+};
+function renderReferenceSetting(modal, container, label, key, sourcePath = "") {
+  const setting = new import_obsidian.Setting(container).setName(label);
+  if (key === "feature") {
+    setting.setDesc("Requires a project. New feature notes are created under that project.");
+  }
+  const input = setting.controlEl.createEl("input", {
+    type: "text",
+    cls: "frontmatter-kanban-reference-input",
+    placeholder: `[[${label} note]]`
+  });
+  input.value = modal.values[key] || "";
+  input.addEventListener("input", () => {
+    modal.values[key] = input.value;
+  });
+  new import_obsidian.ButtonComponent(setting.controlEl).setButtonText(`Add ${label.toLowerCase()}`).setIcon("link").onClick(() => {
+    if (key === "feature" && !String(modal.values.project || "").trim()) {
+      new import_obsidian.Notice("Create or select a project before adding a feature.");
+      return;
+    }
+    const files = modal.plugin.getReferenceFiles(key, modal.values.project, sourcePath);
+    if (!files.length) {
+      const folder = modal.plugin.getReferenceFolder(key, modal.values.project, sourcePath);
+      new import_obsidian.Notice(folder ? `No Markdown notes found in ${folder}.` : "No Markdown notes found.");
+      return;
+    }
+    new ReferenceNoteSuggestModal(modal.app, modal.plugin, key, sourcePath, modal.values.project, (link) => {
+      modal.values[key] = link;
+      input.value = link;
+    }).open();
+  });
+  new import_obsidian.ButtonComponent(setting.controlEl).setIcon("x").setTooltip("Clear").onClick(() => {
+    modal.values[key] = "";
+    input.value = "";
+  });
+}
 var EditTaskModal = class extends import_obsidian.Modal {
   constructor(app, plugin, task) {
     var _a, _b;
@@ -232,6 +303,8 @@ var EditTaskModal = class extends import_obsidian.Modal {
     this.values = {
       title: getTaskTitle(task),
       status: fm.status || plugin.settings.statuses[0] || "backlog",
+      project: fm.project || "",
+      feature: fm.feature || "",
       priority: fm.priority || "",
       due: fm.due || "",
       work_start: fm.work_start || "",
@@ -279,6 +352,8 @@ var EditTaskModal = class extends import_obsidian.Modal {
         this.values.priority = value;
       });
     });
+    renderReferenceSetting(this, contentEl, "Project", "project", this.task.file.path);
+    renderReferenceSetting(this, contentEl, "Feature", "feature", this.task.file.path);
     this.renderDateTimeSetting(contentEl, "Due date", "due");
     this.renderDateRangeSetting(contentEl, "Work on", "work_start", "work_end");
     this.renderNotificationSetting(contentEl);
@@ -286,6 +361,10 @@ var EditTaskModal = class extends import_obsidian.Modal {
       this.renderCustomField(contentEl, field);
     }
     const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
+    new import_obsidian.ButtonComponent(footer).setButtonText("Delete").setIcon("trash-2").setWarning().setClass("frontmatter-kanban-delete-button").onClick(async () => {
+      const deleted = await this.plugin.deleteTask(this.task.file);
+      if (deleted) this.close();
+    });
     new import_obsidian.ButtonComponent(footer).setButtonText("Cancel").onClick(() => this.close());
     new import_obsidian.ButtonComponent(footer).setButtonText("Open note").onClick(() => {
       this.close();
@@ -296,8 +375,8 @@ var EditTaskModal = class extends import_obsidian.Modal {
         new import_obsidian.Notice("Task title is required.");
         return;
       }
-      await this.plugin.updateTask(this.task.file, this.values);
-      this.close();
+      const updated = await this.plugin.updateTask(this.task.file, this.values);
+      if (updated) this.close();
     });
   }
   renderTaskInfo(container) {
@@ -400,6 +479,8 @@ var CreateTaskModal = class extends import_obsidian.Modal {
     this.values = Object.assign({
       title: "",
       status: plugin.settings.statuses[0] || "backlog",
+      project: "",
+      feature: "",
       notification_unit: "days"
     }, initialValues);
     for (const field of plugin.settings.customFields) {
@@ -446,6 +527,12 @@ var CreateTaskModal = class extends import_obsidian.Modal {
         });
       });
     }
+    if (this.plugin.settings.createFormFields.project) {
+      renderReferenceSetting(this, contentEl, "Project", "project");
+    }
+    if (this.plugin.settings.createFormFields.feature) {
+      renderReferenceSetting(this, contentEl, "Feature", "feature");
+    }
     if (this.plugin.settings.createFormFields.due) {
       this.renderDateTimeSetting(contentEl, "Due date", "due");
     }
@@ -465,8 +552,8 @@ var CreateTaskModal = class extends import_obsidian.Modal {
         new import_obsidian.Notice("Task title is required.");
         return;
       }
-      await this.plugin.createTask(this.values);
-      this.close();
+      const created = await this.plugin.createTask(this.values);
+      if (created) this.close();
     });
   }
   renderDateTimeSetting(container, label, key) {
@@ -561,12 +648,22 @@ var COLUMN_ACCENTS = [
   "#b28c8c"
 ];
 function valueToString(value) {
-  if (!value) return "";
+  if (value === void 0 || value === null) return "";
   if (value.constructor && value.constructor.name === "NullValue") return "";
-  return String(value);
+  const text = String(value).trim();
+  if (text.toLowerCase() === "null" || text.toLowerCase() === "undefined") return "";
+  return text;
 }
 function getEntryFile(entry) {
   return entry && entry.file instanceof import_obsidian2.TFile ? entry.file : null;
+}
+function formatReferenceLabel(value) {
+  const text = String(value || "").trim();
+  const wikilink = text.match(/^\[\[(.+)\]\]$/);
+  if (!wikilink) return text;
+  const target = wikilink[1];
+  const alias = target.includes("|") ? target.split("|").pop() : target;
+  return alias.split("/").pop();
 }
 var KanbanBasesView = class extends import_obsidian2.BasesView {
   constructor(controller, containerEl, plugin) {
@@ -583,6 +680,12 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
   }
   onDataUpdated() {
     this.render();
+  }
+  async createFileForView() {
+    this.openCreateTaskModal();
+  }
+  openCreateTaskModal(initialValues = {}) {
+    new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
   }
   render() {
     this.containerEl.empty();
@@ -605,7 +708,7 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
     const groupedData = this.data && Array.isArray(this.data.groupedData) ? this.data.groupedData : [];
     if (groupedData.length > 1 || groupedData[0] && groupedData[0].hasKey && groupedData[0].hasKey()) {
       return this.mergeConfiguredStatuses(groupedData.map((group) => ({
-        status: valueToString(group.key) || "No status",
+        status: this.normalizeStatus(valueToString(group.key)),
         entries: group.entries || []
       })));
     }
@@ -614,7 +717,7 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
     for (const entry of entries) {
       const file = getEntryFile(entry);
       const frontmatter = file ? this.getFrontmatter(file) : {};
-      const status = frontmatter.status || valueToString(entry.getValue && entry.getValue("note.status")) || "No status";
+      const status = this.normalizeStatus(frontmatter.status || valueToString(entry.getValue && entry.getValue("note.status")));
       if (!groupsByStatus.has(status)) groupsByStatus.set(status, []);
       groupsByStatus.get(status).push(entry);
     }
@@ -622,6 +725,9 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       status,
       entries: statusEntries
     })));
+  }
+  normalizeStatus(value) {
+    return valueToString(value) || this.plugin.getDefaultStatus();
   }
   mergeConfiguredStatuses(groups) {
     const result = [];
@@ -659,6 +765,7 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
     title.createSpan({ text: status });
     title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(entries.length) });
+    new import_obsidian2.ButtonComponent(header).setIcon("plus").setTooltip(`New task in ${status}`).setClass("frontmatter-kanban-column-new").onClick(() => this.openCreateTaskModal({ status }));
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
     this.registerDomEvent(cards, "dragover", (event) => {
       event.preventDefault();
@@ -727,14 +834,32 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       }
       this.plugin.openTaskFile(task.file);
     });
+    this.registerDomEvent(card, "contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.cardClickTimer) {
+        window.clearTimeout(this.cardClickTimer);
+        this.cardClickTimer = null;
+      }
+      this.openTaskMenu(event, task);
+    });
     card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
     const summary = this.getCardSummary(task);
     if (summary) {
       card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
     }
+    this.renderTodoProgress(card, task);
     const workOn = getWorkOnText(task.frontmatter);
-    if (task.frontmatter.priority || workOn) {
+    const project = formatReferenceLabel(task.frontmatter.project);
+    const feature = formatReferenceLabel(task.frontmatter.feature);
+    if (task.frontmatter.priority || workOn || project || feature) {
       const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
+      if (project) {
+        meta.createSpan({ cls: "frontmatter-kanban-card-reference", text: `Project ${project}` });
+      }
+      if (feature) {
+        meta.createSpan({ cls: "frontmatter-kanban-card-reference", text: `Feature ${feature}` });
+      }
       if (task.frontmatter.priority) {
         meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
       }
@@ -756,6 +881,35 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       }
     }
   }
+  renderTodoProgress(card, task) {
+    const todo = card.createDiv({ cls: "frontmatter-kanban-card-todos is-loading" });
+    this.plugin.getTaskTodoStats(task.file).then((stats) => {
+      if (!todo.isConnected) return;
+      todo.empty();
+      todo.removeClass("is-loading");
+      if (!stats.total) {
+        todo.detach();
+        return;
+      }
+      const progress = todo.createDiv({ cls: "frontmatter-kanban-card-todo-progress" });
+      const fill = progress.createDiv({ cls: "frontmatter-kanban-card-todo-progress-fill" });
+      fill.style.width = `${Math.round(stats.completed / stats.total * 100)}%`;
+      todo.createSpan({
+        cls: "frontmatter-kanban-card-todo-count",
+        text: `${stats.completed}/${stats.total}`
+      });
+    }).catch(() => {
+      todo.detach();
+    });
+  }
+  openTaskMenu(event, task) {
+    const menu = new import_obsidian2.Menu();
+    menu.addItem((item) => item.setTitle("Edit task").setIcon("pencil").onClick(() => new EditTaskModal(this.plugin.app, this.plugin, task).open()));
+    menu.addItem((item) => item.setTitle("Open note").setIcon("file-text").onClick(() => this.plugin.openTaskFile(task.file)));
+    menu.addSeparator();
+    menu.addItem((item) => item.setTitle("Delete task").setIcon("trash-2").setWarning(true).onClick(() => this.plugin.deleteTask(task.file)));
+    menu.showAtMouseEvent(event);
+  }
   getCardSummary(task) {
     const fm = task.frontmatter;
     return String(fm.description || fm.summary || fm.notes || "").trim();
@@ -775,7 +929,7 @@ function formatPriorityWeightFormula() {
 function generateDefaultKanbanBase() {
   return `filters:
   and:
-    - file.hasTag("${TASK_TAG}")
+    - note.tags.contains("${TASK_TAG}")
 formulas:
   priorityWeight: ${formatPriorityWeightFormula()}
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
@@ -788,6 +942,8 @@ views:
       direction: ASC
     order:
       - note.status
+      - note.project
+      - note.feature
       - note.priority
       - formula.priorityWeight
       - note.due
@@ -830,17 +986,40 @@ var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
     containerEl.createEl("h2", { text: "Kanban Board" });
-    new import_obsidian3.Setting(containerEl).setName("Task folder").setDesc("Markdown task notes are created and read from this folder.").addText((text) => text.setPlaceholder("Tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
+    this.renderStorage(containerEl);
+    this.renderCreateFormFields(containerEl);
+    this.renderStatuses(containerEl);
+    this.renderCustomFields(containerEl);
+  }
+  renderSection(container, title, desc = "") {
+    const section = container.createEl("details", { cls: "frontmatter-kanban-settings-section" });
+    section.open = true;
+    const summary = section.createEl("summary");
+    summary.createSpan({ cls: "frontmatter-kanban-settings-section-title", text: title });
+    if (desc) {
+      summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: desc });
+    }
+    return section;
+  }
+  renderStorage(container) {
+    const section = this.renderSection(container, "Storage", "Folders and Base file location");
+    new import_obsidian3.Setting(section).setName("Task folder").setDesc("Markdown task notes are created and read from this folder.").addText((text) => text.setPlaceholder("Tasks").setValue(this.plugin.settings.taskFolder).onChange(async (value) => {
       this.plugin.settings.taskFolder = value.trim() || "Tasks";
       await this.plugin.saveSettings();
     }));
-    this.renderStatuses(containerEl);
-    this.renderCreateFormFields(containerEl);
-    this.renderCustomFields(containerEl);
+    new import_obsidian3.Setting(section).setName("Kanban Base file").setDesc("Path for the .base file opened by the Kanban Board command.").addText((text) => text.setPlaceholder("Kanban.base").setValue(this.plugin.settings.baseFilePath).onChange(async (value) => {
+      this.plugin.settings.baseFilePath = value.trim() || "Kanban.base";
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(section).setName("Project folder").setDesc("Project notes are created and picked from this folder. Feature notes live inside each project folder.").addText((text) => text.setPlaceholder("Projects").setValue(this.plugin.settings.projectFolder).onChange(async (value) => {
+      this.plugin.settings.projectFolder = value.trim() || "Projects";
+      await this.plugin.saveSettings();
+    }));
   }
   renderStatuses(container) {
-    container.createEl("h3", { text: "Statuses" });
-    const list = container.createDiv({ cls: "frontmatter-kanban-settings-list" });
+    const section = this.renderSection(container, "Statuses", "Columns shown on the Kanban board");
+    const containerEl = section;
+    const list = containerEl.createDiv({ cls: "frontmatter-kanban-settings-list" });
     for (const status of this.plugin.settings.statuses) {
       const row = list.createDiv({ cls: "frontmatter-kanban-settings-row frontmatter-kanban-status-row" });
       const input2 = new import_obsidian3.TextComponent(row).setValue(status);
@@ -853,7 +1032,7 @@ var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
         if (removed) this.display();
       });
     }
-    const addRow = container.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
+    const addRow = containerEl.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
     const input = new import_obsidian3.TextComponent(addRow).setPlaceholder("New status");
     new import_obsidian3.ButtonComponent(addRow).setButtonText("Add status").onClick(async () => {
       const status = cleanStatus(input.getValue());
@@ -871,29 +1050,31 @@ var KanbanSettingTab = class extends import_obsidian3.PluginSettingTab {
     });
   }
   renderCreateFormFields(container) {
-    container.createEl("h3", { text: "Create task form" });
+    const section = this.renderSection(container, "Task form", "Fields shown when creating tasks");
     const options = [
       ["status", "Status"],
       ["priority", "Priority"],
+      ["project", "Project"],
+      ["feature", "Feature"],
       ["due", "Due date"],
       ["workOn", "Work on"],
       ["notification", "Notification"]
     ];
     for (const [key, label] of options) {
-      new import_obsidian3.Setting(container).setName(label).addToggle((toggle) => toggle.setValue(Boolean(this.plugin.settings.createFormFields[key])).onChange(async (value) => {
+      new import_obsidian3.Setting(section).setName(label).addToggle((toggle) => toggle.setValue(Boolean(this.plugin.settings.createFormFields[key])).onChange(async (value) => {
         this.plugin.settings.createFormFields[key] = value;
         await this.plugin.saveSettings();
       }));
     }
   }
   renderCustomFields(container) {
-    container.createEl("h3", { text: "Custom fields" });
-    const list = container.createDiv({ cls: "frontmatter-kanban-settings-list" });
+    const section = this.renderSection(container, "Custom fields", "Additional frontmatter fields");
+    const list = section.createDiv({ cls: "frontmatter-kanban-settings-list" });
     for (const field of this.plugin.settings.customFields) {
       this.renderCustomFieldRow(list, field);
     }
-    container.createEl("h4", { text: "Add field" });
-    const add = container.createDiv({ cls: "frontmatter-kanban-custom-field-editor" });
+    section.createEl("h4", { text: "Add field" });
+    const add = section.createDiv({ cls: "frontmatter-kanban-custom-field-editor" });
     const name = new import_obsidian3.TextComponent(add).setPlaceholder("Name");
     const type = new import_obsidian3.DropdownComponent(add);
     for (const fieldType of FIELD_TYPES) {
@@ -1060,6 +1241,9 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       clone(DEFAULT_SETTINGS.createFormFields),
       this.settings.createFormFields || {}
     );
+    this.settings.baseFilePath = (0, import_obsidian4.normalizePath)(this.settings.baseFilePath || DEFAULT_SETTINGS.baseFilePath);
+    this.settings.projectFolder = (0, import_obsidian4.normalizePath)(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
+    delete this.settings.featureFolder;
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -1102,8 +1286,10 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     }
   }
   getKanbanBasePath() {
-    const folder = (0, import_obsidian4.normalizePath)(this.settings.taskFolder || "Tasks");
-    return (0, import_obsidian4.normalizePath)(`${folder}/${DEFAULT_BASES_VIEW_FOLDER}/${DEFAULT_KANBAN_BASE_FILE}`);
+    const configured = (0, import_obsidian4.normalizePath)(this.settings.baseFilePath || DEFAULT_KANBAN_BASE_FILE);
+    if (!configured) return DEFAULT_KANBAN_BASE_FILE;
+    if (configured.endsWith(".base")) return configured;
+    return (0, import_obsidian4.normalizePath)(`${configured}/${DEFAULT_KANBAN_BASE_FILE}`);
   }
   async ensureKanbanBaseFile() {
     const path = this.getKanbanBasePath();
@@ -1114,18 +1300,33 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     }
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
-    return this.app.vault.create(path, generateDefaultKanbanBase());
+    return this.createMarkdownFile(path, generateDefaultKanbanBase());
   }
   async migrateKanbanBaseFile(file) {
     const contents = await this.app.vault.cachedRead(file);
-    if (!contents.includes("kanban_task")) return;
-    const nextContents = contents.replace(
-      /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
-      `filters:
+    let nextContents = contents;
+    if (nextContents.includes("kanban_task")) {
+      nextContents = nextContents.replace(
+        /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
+        `filters:
   and:
-    - file.hasTag("${TASK_TAG}")`
+    - note.tags.contains("${TASK_TAG}")`
+      );
+    }
+    nextContents = nextContents.replace(
+      new RegExp(`file\\.hasTag\\("${LEGACY_TASK_TAG}"\\)`, "g"),
+      `note.tags.contains("${TASK_TAG}")`
     );
-    await this.app.vault.modify(file, nextContents === contents ? generateDefaultKanbanBase() : nextContents);
+    nextContents = nextContents.replace(
+      new RegExp(`file\\.hasTag\\("${TASK_TAG}"\\)`, "g"),
+      `note.tags.contains("${TASK_TAG}")`
+    );
+    nextContents = nextContents.replace(
+      new RegExp(`note\\.tags\\.contains\\("${LEGACY_TASK_TAG}"\\)`, "g"),
+      `note.tags.contains("${TASK_TAG}")`
+    );
+    if (nextContents === contents) return;
+    await this.app.vault.modify(file, nextContents);
   }
   refreshViews() {
     for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
@@ -1144,7 +1345,9 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
     });
   }
   isLegacyTaskFrontmatter(frontmatter) {
-    return frontmatter && (frontmatter.kanban_task === true || frontmatter.kanban_task === "true");
+    if (!frontmatter) return false;
+    if (frontmatter.kanban_task === true || frontmatter.kanban_task === "true") return true;
+    return !hasFrontmatterTag(frontmatter, TASK_TAG) && hasFrontmatterTag(frontmatter, LEGACY_TASK_TAG);
   }
   isTaskFrontmatter(frontmatter) {
     return Boolean(frontmatter && (hasFrontmatterTag(frontmatter, TASK_TAG) || this.isLegacyTaskFrontmatter(frontmatter)));
@@ -1174,45 +1377,50 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
       return;
     }
     const path = this.getNewTaskPath(folder, sanitizedTitle);
+    const preparedValues = await this.prepareTaskReferences(values, path);
+    if (!preparedValues) return false;
     const frontmatter = {
       tags: [TASK_TAG],
-      title: values.title,
-      status: values.status || this.settings.statuses[0] || "backlog",
+      title: preparedValues.title.trim(),
+      status: this.normalizeTaskStatus(preparedValues.status),
       created: nowIso()
     };
-    if (values.priority) {
-      frontmatter.priority = values.priority;
-      frontmatter.priority_weight = getPriorityWeight(values.priority);
+    if (preparedValues.project) frontmatter.project = preparedValues.project;
+    if (preparedValues.feature) frontmatter.feature = preparedValues.feature;
+    if (preparedValues.priority) {
+      frontmatter.priority = preparedValues.priority;
+      frontmatter.priority_weight = getPriorityWeight(preparedValues.priority);
     }
-    if (values.due) frontmatter.due = values.due;
-    if (values.work_start) frontmatter.work_start = values.work_start;
-    if (values.work_end) frontmatter.work_end = values.work_end;
-    if (values.notification_amount !== void 0 && values.notification_amount !== "") {
-      frontmatter.notification_amount = Number(values.notification_amount);
-      frontmatter.notification_unit = values.notification_unit || "days";
+    if (preparedValues.due) frontmatter.due = preparedValues.due;
+    if (preparedValues.work_start) frontmatter.work_start = preparedValues.work_start;
+    if (preparedValues.work_end) frontmatter.work_end = preparedValues.work_end;
+    if (preparedValues.notification_amount !== void 0 && preparedValues.notification_amount !== "") {
+      frontmatter.notification_amount = Number(preparedValues.notification_amount);
+      frontmatter.notification_unit = preparedValues.notification_unit || "days";
     }
     if (isDoneStatus(frontmatter.status)) {
       frontmatter.completed = nowIso();
     }
     for (const field of this.settings.customFields) {
       if (field.type === "date-range") {
-        if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
-        if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
-      } else if (field.type === "checkbox" && values[field.id] !== void 0 && values[field.id] !== "") {
-        frontmatter[field.id] = values[field.id] === true || values[field.id] === "true";
-      } else if (values[field.id] !== void 0 && values[field.id] !== "") {
-        frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
+        if (preparedValues[`${field.id}_start`]) frontmatter[`${field.id}_start`] = preparedValues[`${field.id}_start`];
+        if (preparedValues[`${field.id}_end`]) frontmatter[`${field.id}_end`] = preparedValues[`${field.id}_end`];
+      } else if (field.type === "checkbox" && preparedValues[field.id] !== void 0 && preparedValues[field.id] !== "") {
+        frontmatter[field.id] = preparedValues[field.id] === true || preparedValues[field.id] === "true";
+      } else if (preparedValues[field.id] !== void 0 && preparedValues[field.id] !== "") {
+        frontmatter[field.id] = field.type === "number" ? Number(preparedValues[field.id]) : preparedValues[field.id];
       }
     }
     const yaml = (0, import_obsidian4.stringifyYaml)(frontmatter).trim();
-    await this.app.vault.create(path, `---
+    await this.createMarkdownFile(path, `---
 ${yaml}
 ---
 
-# ${values.title}
+# ${preparedValues.title}
 `);
     new import_obsidian4.Notice("Task created.");
     this.refreshViews();
+    return true;
   }
   getNewTaskPath(folder, sanitizedTitle) {
     const prefix = formatTimestampForFileName();
@@ -1232,17 +1440,76 @@ ${yaml}
     let current = "";
     for (const part of parts) {
       current = current ? `${current}/${part}` : part;
-      if (!this.app.vault.getAbstractFileByPath(current)) {
-        await this.app.vault.createFolder(current);
+      const existing = this.app.vault.getAbstractFileByPath(current);
+      if (!existing) {
+        try {
+          await this.app.vault.createFolder(current);
+        } catch (error) {
+          const created = this.app.vault.getAbstractFileByPath(current);
+          if (created instanceof import_obsidian4.TFile) {
+            throw new Error(`Cannot create folder "${current}" because a file already exists at that path.`);
+          }
+          if (!created) throw error;
+        }
+      } else if (existing instanceof import_obsidian4.TFile) {
+        throw new Error(`Cannot create folder "${current}" because a file already exists at that path.`);
       }
     }
   }
+  getDefaultStatus() {
+    return this.settings.statuses[0] || "backlog";
+  }
+  normalizeTaskStatus(status) {
+    const cleaned = cleanStatus(status);
+    if (!cleaned || cleaned.toLowerCase() === "null" || cleaned.toLowerCase() === "undefined") {
+      return this.getDefaultStatus();
+    }
+    return cleaned;
+  }
+  async createMarkdownFile(path, contents) {
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof import_obsidian4.TFile) return existing;
+    if (existing) {
+      throw new Error(`Cannot create file "${path}" because another item already exists at that path.`);
+    }
+    try {
+      return await this.app.vault.create(path, contents);
+    } catch (error) {
+      const created = this.app.vault.getAbstractFileByPath(path);
+      if (created instanceof import_obsidian4.TFile) return created;
+      throw error;
+    }
+  }
+  async createUniqueMarkdownFile(folder, sanitizedName, contents) {
+    let path = (0, import_obsidian4.normalizePath)(`${folder}/${sanitizedName}.md`);
+    let counter = 2;
+    while (this.app.vault.getAbstractFileByPath(path)) {
+      path = (0, import_obsidian4.normalizePath)(`${folder}/${sanitizedName} ${counter}.md`);
+      counter += 1;
+    }
+    return this.createMarkdownFile(path, contents);
+  }
+  async ensureReferenceFile(folder, name) {
+    const sanitizedName = sanitizeFileName(name);
+    if (!sanitizedName) return null;
+    await this.ensureFolder(folder);
+    const path = (0, import_obsidian4.normalizePath)(`${folder}/${sanitizedName}.md`);
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof import_obsidian4.TFile) return existing;
+    if (existing) {
+      return this.createUniqueMarkdownFile(folder, sanitizedName, `# ${name}
+`);
+    }
+    return this.createMarkdownFile(path, `# ${name}
+`);
+  }
   async updateTaskStatus(file, status) {
+    const nextStatus = this.normalizeTaskStatus(status);
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       ensureFrontmatterTag(frontmatter, TASK_TAG);
       delete frontmatter.kanban_task;
-      frontmatter.status = status;
-      if (isDoneStatus(status)) {
+      frontmatter.status = nextStatus;
+      if (isDoneStatus(nextStatus)) {
         if (!frontmatter.completed) frontmatter.completed = nowIso();
       } else {
         delete frontmatter.completed;
@@ -1303,28 +1570,160 @@ ${yaml}
     await this.saveSettings();
     return true;
   }
+  getReferenceFiles(kind, projectValue = "", sourcePath = "") {
+    if (kind === "feature") {
+      const projectFile = this.findProjectFile(projectValue, sourcePath);
+      if (!projectFile) return [];
+      const featureFolder = this.getFeatureFolderForProject(projectFile);
+      return this.app.vault.getMarkdownFiles().filter((file) => file.path.startsWith(`${featureFolder}/`)).sort((left, right) => left.basename.localeCompare(right.basename));
+    }
+    const folder = this.getProjectFolder();
+    return this.app.vault.getMarkdownFiles().filter((file) => !folder || file.path === folder || file.path.startsWith(`${folder}/`)).filter((file) => !file.path.includes("/Features/")).sort((left, right) => left.basename.localeCompare(right.basename));
+  }
+  getReferenceFolder(kind, projectValue = "", sourcePath = "") {
+    if (kind === "feature") {
+      const projectFile = this.findProjectFile(projectValue, sourcePath);
+      return projectFile ? this.getFeatureFolderForProject(projectFile) : "";
+    }
+    return this.getProjectFolder();
+  }
+  getNoteLink(file, sourcePath = "") {
+    return this.app.fileManager.generateMarkdownLink(file, sourcePath || this.getKanbanBasePath());
+  }
+  getProjectFolder() {
+    return (0, import_obsidian4.normalizePath)(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
+  }
+  getFeatureFolderForProject(projectFile) {
+    return (0, import_obsidian4.normalizePath)(`${projectFile.path.replace(/\.md$/i, "")}/Features`);
+  }
+  getReferenceInputTarget(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    const wiki = text.match(/^\[\[([^|\]#]+)(?:#[^|\]]+)?(?:\|[^\]]+)?\]\]$/);
+    if (wiki) return wiki[1].trim();
+    const markdown = text.match(/^\[[^\]]+\]\(([^)]+)\)$/);
+    if (markdown) return markdown[1].replace(/\.md$/i, "").trim();
+    return text;
+  }
+  getReferenceName(value) {
+    const target = this.getReferenceInputTarget(value);
+    if (!target) return "";
+    return target.split("/").pop().replace(/\.md$/i, "").trim();
+  }
+  findLinkedFile(value, sourcePath = "") {
+    const target = this.getReferenceInputTarget(value);
+    if (!target) return null;
+    return this.app.metadataCache.getFirstLinkpathDest(target, sourcePath || this.getKanbanBasePath());
+  }
+  findProjectFile(value, sourcePath = "") {
+    const linked = this.findLinkedFile(value, sourcePath);
+    if (linked instanceof import_obsidian4.TFile && linked.path.startsWith(`${this.getProjectFolder()}/`) && !linked.path.includes("/Features/")) {
+      return linked;
+    }
+    const name = this.getReferenceName(value).toLowerCase();
+    if (!name) return null;
+    return this.getReferenceFiles("project").find((file) => file.basename.toLowerCase() === name) || null;
+  }
+  findFeatureFile(value, projectFile, sourcePath = "") {
+    const featureFolder = this.getFeatureFolderForProject(projectFile);
+    const linked = this.findLinkedFile(value, sourcePath);
+    if (linked instanceof import_obsidian4.TFile && linked.path.startsWith(`${featureFolder}/`)) {
+      return linked;
+    }
+    const name = this.getReferenceName(value).toLowerCase();
+    if (!name) return null;
+    return this.getReferenceFiles("feature", this.getNoteLink(projectFile, sourcePath), sourcePath).find((file) => file.basename.toLowerCase() === name) || null;
+  }
+  async resolveProjectReference(value, sourcePath) {
+    if (!String(value || "").trim()) return { link: "", file: null };
+    const existing = this.findProjectFile(value, sourcePath);
+    if (existing) return { link: this.getNoteLink(existing, sourcePath), file: existing };
+    const name = this.getReferenceName(value);
+    const file = await this.ensureReferenceFile(this.getProjectFolder(), name);
+    if (!file) {
+      new import_obsidian4.Notice("Project name is required.");
+      return null;
+    }
+    return { link: this.getNoteLink(file, sourcePath), file };
+  }
+  async resolveFeatureReference(value, projectFile, sourcePath) {
+    if (!String(value || "").trim()) return "";
+    if (!projectFile) {
+      new import_obsidian4.Notice("Create or select a project before adding a feature.");
+      return null;
+    }
+    const existing = this.findFeatureFile(value, projectFile, sourcePath);
+    if (existing) return this.getNoteLink(existing, sourcePath);
+    const name = this.getReferenceName(value);
+    const file = await this.ensureReferenceFile(this.getFeatureFolderForProject(projectFile), name);
+    if (!file) {
+      new import_obsidian4.Notice("Feature name is required.");
+      return null;
+    }
+    return this.getNoteLink(file, sourcePath);
+  }
+  async prepareTaskReferences(values, sourcePath) {
+    const prepared = Object.assign({}, values);
+    const project = await this.resolveProjectReference(prepared.project, sourcePath);
+    if (!project) return null;
+    const feature = await this.resolveFeatureReference(prepared.feature, project.file, sourcePath);
+    if (feature === null) return null;
+    prepared.project = project.link;
+    prepared.feature = feature;
+    return prepared;
+  }
+  async getTaskTodoStats(file) {
+    const contents = await this.app.vault.cachedRead(file);
+    const todoPattern = /^\s*[-*+]\s+\[([ xX])\]\s+/gm;
+    let total = 0;
+    let completed = 0;
+    let match;
+    while ((match = todoPattern.exec(contents)) !== null) {
+      total += 1;
+      if (String(match[1]).toLowerCase() === "x") completed += 1;
+    }
+    return { completed, total };
+  }
+  async deleteTask(file) {
+    const confirmed = window.confirm(`Delete "${file.basename}"?`);
+    if (!confirmed) return false;
+    try {
+      await this.app.vault.trash(file, true);
+    } catch (error) {
+      await this.app.vault.trash(file, false);
+    }
+    new import_obsidian4.Notice("Task deleted.");
+    this.refreshViews();
+    return true;
+  }
   async updateTask(file, values) {
+    const preparedValues = await this.prepareTaskReferences(values, file.path);
+    if (!preparedValues) return false;
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       ensureFrontmatterTag(frontmatter, TASK_TAG);
       delete frontmatter.kanban_task;
-      frontmatter.title = values.title.trim();
-      frontmatter.status = values.status || this.settings.statuses[0] || "backlog";
-      if (values.priority) {
-        frontmatter.priority = values.priority;
-        frontmatter.priority_weight = getPriorityWeight(values.priority);
+      frontmatter.title = preparedValues.title.trim();
+      frontmatter.status = this.normalizeTaskStatus(preparedValues.status);
+      if (preparedValues.project) frontmatter.project = preparedValues.project;
+      else delete frontmatter.project;
+      if (preparedValues.feature) frontmatter.feature = preparedValues.feature;
+      else delete frontmatter.feature;
+      if (preparedValues.priority) {
+        frontmatter.priority = preparedValues.priority;
+        frontmatter.priority_weight = getPriorityWeight(preparedValues.priority);
       } else {
         delete frontmatter.priority;
         delete frontmatter.priority_weight;
       }
-      if (values.due) frontmatter.due = values.due;
+      if (preparedValues.due) frontmatter.due = preparedValues.due;
       else delete frontmatter.due;
-      if (values.work_start) frontmatter.work_start = values.work_start;
+      if (preparedValues.work_start) frontmatter.work_start = preparedValues.work_start;
       else delete frontmatter.work_start;
-      if (values.work_end) frontmatter.work_end = values.work_end;
+      if (preparedValues.work_end) frontmatter.work_end = preparedValues.work_end;
       else delete frontmatter.work_end;
-      if (values.notification_amount !== void 0 && values.notification_amount !== "") {
-        frontmatter.notification_amount = Number(values.notification_amount);
-        frontmatter.notification_unit = values.notification_unit || "days";
+      if (preparedValues.notification_amount !== void 0 && preparedValues.notification_amount !== "") {
+        frontmatter.notification_amount = Number(preparedValues.notification_amount);
+        frontmatter.notification_unit = preparedValues.notification_unit || "days";
       } else {
         delete frontmatter.notification_amount;
         delete frontmatter.notification_unit;
@@ -1342,19 +1741,19 @@ ${yaml}
       }
       for (const field of this.settings.customFields) {
         if (field.type === "date-range") {
-          if (values[`${field.id}_start`]) frontmatter[`${field.id}_start`] = values[`${field.id}_start`];
+          if (preparedValues[`${field.id}_start`]) frontmatter[`${field.id}_start`] = preparedValues[`${field.id}_start`];
           else delete frontmatter[`${field.id}_start`];
-          if (values[`${field.id}_end`]) frontmatter[`${field.id}_end`] = values[`${field.id}_end`];
+          if (preparedValues[`${field.id}_end`]) frontmatter[`${field.id}_end`] = preparedValues[`${field.id}_end`];
           else delete frontmatter[`${field.id}_end`];
           continue;
         }
         if (field.type === "checkbox") {
-          if (values[field.id] === void 0) delete frontmatter[field.id];
-          else frontmatter[field.id] = values[field.id] === true || values[field.id] === "true";
+          if (preparedValues[field.id] === void 0) delete frontmatter[field.id];
+          else frontmatter[field.id] = preparedValues[field.id] === true || preparedValues[field.id] === "true";
           continue;
         }
-        if (values[field.id] !== void 0 && values[field.id] !== "") {
-          frontmatter[field.id] = field.type === "number" ? Number(values[field.id]) : values[field.id];
+        if (preparedValues[field.id] !== void 0 && preparedValues[field.id] !== "") {
+          frontmatter[field.id] = field.type === "number" ? Number(preparedValues[field.id]) : preparedValues[field.id];
         } else {
           delete frontmatter[field.id];
         }
@@ -1362,6 +1761,7 @@ ${yaml}
     });
     new import_obsidian4.Notice("Task updated.");
     this.refreshViews();
+    return true;
   }
   async syncCompletionDates() {
     if (this.completionSyncRunning) return;

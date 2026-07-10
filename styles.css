@@ -281,6 +281,19 @@
   background: var(--kanban-column-accent);
 }
 
+.frontmatter-kanban-column-header .frontmatter-kanban-column-new {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: white;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.frontmatter-kanban-column-header .frontmatter-kanban-column-new:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
 .frontmatter-kanban-column-title {
   display: flex;
   align-items: center;
@@ -375,6 +388,38 @@
   overflow-wrap: anywhere;
 }
 
+.frontmatter-kanban-card-todos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 16px;
+  margin-top: 8px;
+}
+
+.frontmatter-kanban-card-todo-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--background-modifier-border);
+}
+
+.frontmatter-kanban-card-todo-progress-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--interactive-accent);
+  transition: width 120ms ease;
+}
+
+.frontmatter-kanban-card-todo-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .frontmatter-kanban-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -405,6 +450,11 @@
 .frontmatter-kanban-card-meta .priority-low {
   color: #2f8f5b;
   background: color-mix(in srgb, #2f8f5b 12%, var(--background-secondary));
+}
+
+.frontmatter-kanban-card-meta .frontmatter-kanban-card-reference {
+  color: var(--text-normal);
+  background: color-mix(in srgb, var(--interactive-accent) 9%, var(--background-secondary));
 }
 
 .frontmatter-kanban-card-footer {
@@ -486,11 +536,17 @@
 .frontmatter-kanban-modal input[type="date"],
 .frontmatter-kanban-modal input[type="datetime-local"],
 .frontmatter-kanban-modal input[type="number"],
+.frontmatter-kanban-modal input.frontmatter-kanban-reference-input,
 .frontmatter-kanban-filter-row input[type="date"],
 .frontmatter-kanban-filter-row input[type="datetime-local"],
 .frontmatter-kanban-filter-row input[type="number"],
 .frontmatter-kanban-filter-row input[type="text"] {
   max-width: 180px;
+}
+
+.frontmatter-kanban-modal input.frontmatter-kanban-reference-input {
+  min-width: 220px;
+  max-width: 280px;
 }
 
 .frontmatter-kanban-filter-row input.frontmatter-kanban-filter-amount {
@@ -506,6 +562,57 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+}
+
+.frontmatter-kanban-modal-footer .frontmatter-kanban-delete-button {
+  margin-right: auto;
+}
+
+.frontmatter-kanban-suggestion-title {
+  font-weight: 600;
+}
+
+.frontmatter-kanban-suggestion-path {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.frontmatter-kanban-settings-section {
+  margin: 14px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+}
+
+.frontmatter-kanban-settings-section > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-kanban-settings-section:not([open]) > summary {
+  border-bottom: 0;
+}
+
+.frontmatter-kanban-settings-section-title {
+  font-weight: 700;
+}
+
+.frontmatter-kanban-settings-section-desc {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.frontmatter-kanban-settings-section > .setting-item,
+.frontmatter-kanban-settings-section > .frontmatter-kanban-settings-list,
+.frontmatter-kanban-settings-section > .frontmatter-kanban-settings-add-row,
+.frontmatter-kanban-settings-section > .frontmatter-kanban-custom-field-editor,
+.frontmatter-kanban-settings-section > h4 {
+  margin-left: 12px;
+  margin-right: 12px;
 }
 
 .frontmatter-kanban-settings-list {

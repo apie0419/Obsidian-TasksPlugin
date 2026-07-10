@@ -1,4 +1,4 @@
-import { ButtonComponent, DropdownComponent, Modal, Notice, Setting } from "obsidian";
+import { ButtonComponent, DropdownComponent, Modal, Notice, Setting, SuggestModal } from "obsidian";
 import { PRIORITIES } from "../constants";
 import { getTaskTitle } from "../taskFields";
 import { formatDateForInput, formatDateTimeForInput, readDateInputAsIso } from "../utils/date";
@@ -38,6 +38,88 @@ function formatTaskInfoDate(value) {
   }).replace(/, (?=\d{2}:\d{2}$)/, " ");
 }
 
+function getReferenceLabel(kind) {
+  return kind === "feature" ? "feature" : "project";
+}
+
+class ReferenceNoteSuggestModal extends SuggestModal {
+  constructor(app, plugin, kind, sourcePath, projectValue, onChoose) {
+    super(app);
+    this.plugin = plugin;
+    this.kind = kind;
+    this.sourcePath = sourcePath;
+    this.projectValue = projectValue;
+    this.onChoose = onChoose;
+    this.limit = 50;
+    this.emptyStateText = `No ${getReferenceLabel(kind)} notes found.`;
+    this.setPlaceholder(`Search ${getReferenceLabel(kind)} notes`);
+  }
+
+  getSuggestions(query) {
+    const normalizedQuery = query.trim().toLowerCase();
+    return this.plugin.getReferenceFiles(this.kind, this.projectValue, this.sourcePath).filter((file) => {
+      if (!normalizedQuery) return true;
+      return file.basename.toLowerCase().includes(normalizedQuery)
+        || file.path.toLowerCase().includes(normalizedQuery);
+    });
+  }
+
+  renderSuggestion(file, el) {
+    el.createDiv({ cls: "frontmatter-kanban-suggestion-title", text: file.basename });
+    el.createDiv({ cls: "frontmatter-kanban-suggestion-path", text: file.path });
+  }
+
+  onChooseSuggestion(file) {
+    this.onChoose(this.plugin.getNoteLink(file, this.sourcePath));
+  }
+}
+
+function renderReferenceSetting(modal, container, label, key, sourcePath = "") {
+  const setting = new Setting(container).setName(label);
+  if (key === "feature") {
+    setting.setDesc("Requires a project. New feature notes are created under that project.");
+  }
+  const input = setting.controlEl.createEl("input", {
+    type: "text",
+    cls: "frontmatter-kanban-reference-input",
+    placeholder: `[[${label} note]]`
+  });
+  input.value = modal.values[key] || "";
+  input.addEventListener("input", () => {
+    modal.values[key] = input.value;
+  });
+
+  new ButtonComponent(setting.controlEl)
+    .setButtonText(`Add ${label.toLowerCase()}`)
+    .setIcon("link")
+    .onClick(() => {
+      if (key === "feature" && !String(modal.values.project || "").trim()) {
+        new Notice("Create or select a project before adding a feature.");
+        return;
+      }
+
+      const files = modal.plugin.getReferenceFiles(key, modal.values.project, sourcePath);
+      if (!files.length) {
+        const folder = modal.plugin.getReferenceFolder(key, modal.values.project, sourcePath);
+        new Notice(folder ? `No Markdown notes found in ${folder}.` : "No Markdown notes found.");
+        return;
+      }
+
+      new ReferenceNoteSuggestModal(modal.app, modal.plugin, key, sourcePath, modal.values.project, (link) => {
+        modal.values[key] = link;
+        input.value = link;
+      }).open();
+    });
+
+  new ButtonComponent(setting.controlEl)
+    .setIcon("x")
+    .setTooltip("Clear")
+    .onClick(() => {
+      modal.values[key] = "";
+      input.value = "";
+    });
+}
+
 export class EditTaskModal extends Modal {
   constructor(app, plugin, task) {
     super(app);
@@ -47,6 +129,8 @@ export class EditTaskModal extends Modal {
     this.values = {
       title: getTaskTitle(task),
       status: fm.status || plugin.settings.statuses[0] || "backlog",
+      project: fm.project || "",
+      feature: fm.feature || "",
       priority: fm.priority || "",
       due: fm.due || "",
       work_start: fm.work_start || "",
@@ -109,6 +193,9 @@ export class EditTaskModal extends Modal {
         });
       });
 
+    renderReferenceSetting(this, contentEl, "Project", "project", this.task.file.path);
+    renderReferenceSetting(this, contentEl, "Feature", "feature", this.task.file.path);
+
     this.renderDateTimeSetting(contentEl, "Due date", "due");
     this.renderDateRangeSetting(contentEl, "Work on", "work_start", "work_end");
     this.renderNotificationSetting(contentEl);
@@ -118,6 +205,15 @@ export class EditTaskModal extends Modal {
     }
 
     const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
+    new ButtonComponent(footer)
+      .setButtonText("Delete")
+      .setIcon("trash-2")
+      .setWarning()
+      .setClass("frontmatter-kanban-delete-button")
+      .onClick(async () => {
+        const deleted = await this.plugin.deleteTask(this.task.file);
+        if (deleted) this.close();
+      });
     new ButtonComponent(footer)
       .setButtonText("Cancel")
       .onClick(() => this.close());
@@ -135,8 +231,8 @@ export class EditTaskModal extends Modal {
           new Notice("Task title is required.");
           return;
         }
-        await this.plugin.updateTask(this.task.file, this.values);
-        this.close();
+        const updated = await this.plugin.updateTask(this.task.file, this.values);
+        if (updated) this.close();
       });
   }
 
@@ -253,6 +349,8 @@ export class CreateTaskModal extends Modal {
     this.values = Object.assign({
       title: "",
       status: plugin.settings.statuses[0] || "backlog",
+      project: "",
+      feature: "",
       notification_unit: "days"
     }, initialValues);
 
@@ -314,6 +412,14 @@ export class CreateTaskModal extends Modal {
         });
     }
 
+    if (this.plugin.settings.createFormFields.project) {
+      renderReferenceSetting(this, contentEl, "Project", "project");
+    }
+
+    if (this.plugin.settings.createFormFields.feature) {
+      renderReferenceSetting(this, contentEl, "Feature", "feature");
+    }
+
     if (this.plugin.settings.createFormFields.due) {
       this.renderDateTimeSetting(contentEl, "Due date", "due");
     }
@@ -342,8 +448,8 @@ export class CreateTaskModal extends Modal {
           new Notice("Task title is required.");
           return;
         }
-        await this.plugin.createTask(this.values);
-        this.close();
+        const created = await this.plugin.createTask(this.values);
+        if (created) this.close();
       });
   }
 

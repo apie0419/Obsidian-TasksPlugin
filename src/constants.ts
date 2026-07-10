@@ -1,8 +1,8 @@
 export const BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
-export const DEFAULT_BASES_VIEW_FOLDER = "Views";
-export const DEFAULT_KANBAN_BASE_FILE = "kanban.base";
+export const DEFAULT_KANBAN_BASE_FILE = "Kanban.base";
 export const DONE_STATUS = "done";
-export const TASK_TAG = "tasks";
+export const TASK_TAG = "task";
+export const LEGACY_TASK_TAG = "tasks";
 
 export const BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
 export const PRIORITIES = ["high", "medium", "easy", "low"];
@@ -15,10 +15,14 @@ export const PRIORITY_WEIGHTS = {
 
 export const DEFAULT_SETTINGS = {
   taskFolder: "Tasks",
+  baseFilePath: DEFAULT_KANBAN_BASE_FILE,
+  projectFolder: "Projects",
   statuses: [...BUILT_IN_STATUSES],
   createFormFields: {
     status: true,
     priority: true,
+    project: true,
+    feature: true,
     due: true,
     workOn: true,
     notification: true

@@ -4,7 +4,8 @@ const isWatch = process.argv.includes("--watch");
 const isProduction = process.argv.includes("--production");
 
 const options = {
-  entryPoints: ["src/main.ts"],
+  absWorkingDir: process.cwd(),
+  entryPoints: ["./src/main.ts"],
   bundle: true,
   external: ["obsidian"],
   format: "cjs",
