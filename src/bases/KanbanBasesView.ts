@@ -207,7 +207,9 @@ export class KanbanBasesView extends BasesView {
   }
 
   renderCard(cards, task) {
-    const card = cards.createDiv({ cls: `frontmatter-kanban-card ${getDueClass(task)}` });
+    const priority = String(task.frontmatter.priority || "").trim().toLowerCase();
+    const priorityClass = priority ? `priority-${priority}` : "";
+    const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass}` });
     card.draggable = true;
     this.registerDomEvent(card, "dragstart", (event) => {
       if (!event.dataTransfer) return;
@@ -264,7 +266,11 @@ export class KanbanBasesView extends BasesView {
     const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
     const titleIcon = titleBlock.createSpan({ cls: "frontmatter-kanban-card-title-icon" });
     setIcon(titleIcon, "file-text");
-    titleBlock.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+    const titleText = titleBlock.createDiv({ cls: "frontmatter-kanban-card-title-wrap" });
+    if (priority) {
+      titleText.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
+    }
+    titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
 
     if (cardWorkOn || cardDueText) {
       const schedule = hero.createDiv({ cls: "frontmatter-kanban-card-schedule" });
@@ -276,7 +282,7 @@ export class KanbanBasesView extends BasesView {
         workText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardWorkOn });
       }
       if (cardDueText) {
-        const due = schedule.createDiv({ cls: "frontmatter-kanban-card-schedule-item is-due" });
+        const due = schedule.createDiv({ cls: `frontmatter-kanban-card-schedule-item is-due ${getDueClass(task)}` });
         setIcon(due.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar");
         const dueText = due.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
         dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Due date" });
@@ -293,7 +299,7 @@ export class KanbanBasesView extends BasesView {
 
     const project = formatReferenceLabel(task.frontmatter.project);
     const feature = formatReferenceLabel(task.frontmatter.feature);
-    if (task.frontmatter.priority || project || feature) {
+    if (project || feature) {
       card.createDiv({ cls: "frontmatter-kanban-card-divider" });
       const stats = card.createDiv({ cls: "frontmatter-kanban-card-stats" });
       if (project) {
@@ -309,13 +315,6 @@ export class KanbanBasesView extends BasesView {
         const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
         body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
         body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
-      }
-      if (task.frontmatter.priority) {
-        const item = stats.createDiv({ cls: `frontmatter-kanban-card-stat is-priority priority-${task.frontmatter.priority}` });
-        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "flag");
-        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Priority" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: String(task.frontmatter.priority).toUpperCase() });
       }
     }
     if (false) {
