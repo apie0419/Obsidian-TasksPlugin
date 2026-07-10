@@ -15,9 +15,8 @@ export class KanbanSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
 
-    containerEl.createEl("h2", { text: "Kanban Board" });
+    containerEl.createEl("h2", { text: "TaskManagement" });
 
-    this.renderStorage(containerEl);
     this.renderCreateFormFields(containerEl);
     this.renderStatuses(containerEl);
     this.renderCustomFields(containerEl);
@@ -32,43 +31,6 @@ export class KanbanSettingTab extends PluginSettingTab {
       summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: desc });
     }
     return section;
-  }
-
-  renderStorage(container) {
-    const section = this.renderSection(container, "Storage", "Folders and Base file location");
-
-    new Setting(section)
-      .setName("Task folder")
-      .setDesc("Markdown task notes are created and read from this folder.")
-      .addText((text) => text
-        .setPlaceholder("Tasks")
-        .setValue(this.plugin.settings.taskFolder)
-        .onChange(async (value) => {
-          this.plugin.settings.taskFolder = value.trim() || "Tasks";
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(section)
-      .setName("Kanban Base file")
-      .setDesc("Path for the .base file opened by the Kanban Board command.")
-      .addText((text) => text
-        .setPlaceholder("Kanban.base")
-        .setValue(this.plugin.settings.baseFilePath)
-        .onChange(async (value) => {
-          this.plugin.settings.baseFilePath = value.trim() || "Kanban.base";
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(section)
-      .setName("Project folder")
-      .setDesc("Project notes are created and picked from this folder. Feature notes live inside each project folder.")
-      .addText((text) => text
-        .setPlaceholder("Projects")
-        .setValue(this.plugin.settings.projectFolder)
-        .onChange(async (value) => {
-          this.plugin.settings.projectFolder = value.trim() || "Projects";
-          await this.plugin.saveSettings();
-        }));
   }
 
   renderStatuses(container) {

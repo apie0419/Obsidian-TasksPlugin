@@ -255,7 +255,34 @@ export class KanbanBasesView extends BasesView {
       this.openTaskMenu(event, task);
     });
 
-    card.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+    const cardWorkOn = getWorkOnText(task.frontmatter);
+    const cardDueText = task.frontmatter.due
+      ? formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ")
+      : "";
+
+    const hero = card.createDiv({ cls: "frontmatter-kanban-card-hero" });
+    const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
+    const titleIcon = titleBlock.createSpan({ cls: "frontmatter-kanban-card-title-icon" });
+    setIcon(titleIcon, "file-text");
+    titleBlock.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+
+    if (cardWorkOn || cardDueText) {
+      const schedule = hero.createDiv({ cls: "frontmatter-kanban-card-schedule" });
+      if (cardWorkOn) {
+        const work = schedule.createDiv({ cls: "frontmatter-kanban-card-schedule-item is-work" });
+        setIcon(work.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar-range");
+        const workText = work.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
+        workText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Work on" });
+        workText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardWorkOn });
+      }
+      if (cardDueText) {
+        const due = schedule.createDiv({ cls: "frontmatter-kanban-card-schedule-item is-due" });
+        setIcon(due.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar");
+        const dueText = due.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
+        dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Due date" });
+        dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardDueText });
+      }
+    }
 
     const summary = this.getCardSummary(task);
     if (summary) {
@@ -267,25 +294,50 @@ export class KanbanBasesView extends BasesView {
     const workOn = getWorkOnText(task.frontmatter);
     const project = formatReferenceLabel(task.frontmatter.project);
     const feature = formatReferenceLabel(task.frontmatter.feature);
-    if (task.frontmatter.priority || workOn || project || feature) {
-      const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
+    if (task.frontmatter.priority || project || feature) {
+      card.createDiv({ cls: "frontmatter-kanban-card-divider" });
+      const stats = card.createDiv({ cls: "frontmatter-kanban-card-stats" });
       if (project) {
-        meta.createSpan({ cls: "frontmatter-kanban-card-reference", text: `Project ${project}` });
+        const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
+        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
+        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
       }
       if (feature) {
-        meta.createSpan({ cls: "frontmatter-kanban-card-reference", text: `Feature ${feature}` });
+        const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
+        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
+        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
+      }
+      if (task.frontmatter.priority) {
+        const item = stats.createDiv({ cls: `frontmatter-kanban-card-stat is-priority priority-${task.frontmatter.priority}` });
+        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "flag");
+        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Priority" });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: String(task.frontmatter.priority).toUpperCase() });
+      }
+    }
+    if (false && (task.frontmatter.priority || workOn || project || feature)) {
+      const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
+      if (project) {
+        meta.createSpan({ cls: "frontmatter-kanban-card-reference is-project", text: `🚀 ${project}` });
+      }
+      if (feature) {
+        meta.createSpan({ cls: "frontmatter-kanban-card-reference is-feature", text: `🛠️ ${feature}` });
       }
       if (task.frontmatter.priority) {
         meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
       }
       if (workOn) {
-        meta.createSpan({ text: `Work ${workOn}` });
+        meta.createSpan({ cls: "frontmatter-kanban-card-work", text: `Work on ${workOn}` });
       }
     }
 
     if (task.frontmatter.due || task.frontmatter.completed) {
       const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
-      if (task.frontmatter.due) {
+      if (false && task.frontmatter.due) {
         const due = footer.createSpan({ cls: "frontmatter-kanban-card-date" });
         setIcon(due.createSpan(), "calendar");
         due.createSpan({ text: formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ") });

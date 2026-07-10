@@ -3,9 +3,14 @@ import {
   BASES_KANBAN_VIEW_TYPE,
   DEFAULT_SETTINGS,
   DEFAULT_KANBAN_BASE_FILE,
+  FEATURE_FOLDER,
   FIELD_TYPES,
   LEGACY_TASK_TAG,
+  PROJECT_FOLDER,
+  ROOT_FOLDER,
+  TASK_FOLDER,
   TASK_TAG,
+  VIEWS_FOLDER,
 } from "./constants";
 import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
 import { generateDefaultKanbanBase } from "./bases/defaultKanbanBase";
@@ -28,9 +33,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-frontmatter-kanban-board",
-      name: "Open Kanban Board",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "k" }],
+      id: "open-taskmanagement-kanban-board",
+      name: "Open Kanban board",
       callback: () => this.activateView()
     });
 
@@ -55,6 +59,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     );
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1000));
 
+    await this.ensureStorageFolders();
+    await this.ensureKanbanBaseFile();
     await this.migrateLegacyTaskTags();
     this.syncDerivedFields();
     this.checkNotifications();
@@ -83,9 +89,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       clone(DEFAULT_SETTINGS.createFormFields),
       this.settings.createFormFields || {}
     );
-    this.settings.taskFolder = normalizePath(this.settings.taskFolder || DEFAULT_SETTINGS.taskFolder);
-    this.settings.baseFilePath = normalizePath(this.settings.baseFilePath || DEFAULT_SETTINGS.baseFilePath);
-    this.settings.projectFolder = normalizePath(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
+    this.settings.taskFolder = TASK_FOLDER;
+    this.settings.baseFilePath = DEFAULT_KANBAN_BASE_FILE;
+    this.settings.projectFolder = PROJECT_FOLDER;
     delete this.settings.featureFolder;
   }
 
@@ -136,10 +142,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   getKanbanBasePath() {
-    const configured = normalizePath(this.settings.baseFilePath || DEFAULT_KANBAN_BASE_FILE);
-    if (!configured) return DEFAULT_KANBAN_BASE_FILE;
-    if (configured.endsWith(".base")) return configured;
-    return normalizePath(`${configured}/${DEFAULT_KANBAN_BASE_FILE}`);
+    return DEFAULT_KANBAN_BASE_FILE;
   }
 
   async ensureKanbanBaseFile() {
@@ -153,6 +156,14 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
     return this.createMarkdownFile(path, generateDefaultKanbanBase(this.getTaskFolder()));
+  }
+
+  async ensureStorageFolders() {
+    await this.ensureFolder(ROOT_FOLDER);
+    await this.ensureFolder(TASK_FOLDER);
+    await this.ensureFolder(VIEWS_FOLDER);
+    await this.ensureFolder(PROJECT_FOLDER);
+    await this.ensureFolder(FEATURE_FOLDER);
   }
 
   async migrateKanbanBaseFile(file) {
@@ -213,7 +224,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   getTaskFolder() {
-    return normalizePath(this.settings.taskFolder || DEFAULT_SETTINGS.taskFolder);
+    return TASK_FOLDER;
   }
 
   isPathInTaskFolder(path) {
@@ -519,11 +530,11 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   getProjectFolder() {
-    return normalizePath(this.settings.projectFolder || DEFAULT_SETTINGS.projectFolder);
+    return PROJECT_FOLDER;
   }
 
   getFeatureFolderForProject(projectFile) {
-    return normalizePath(`${projectFile.path.replace(/\.md$/i, "")}/Features`);
+    return normalizePath(`${FEATURE_FOLDER}/${sanitizeFileName(projectFile.basename)}`);
   }
 
   getReferenceInputTarget(value) {

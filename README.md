@@ -1,4 +1,4 @@
-# Frontmatter Kanban Board
+# TaskManagement
 
 An Obsidian plugin that creates a Kanban board from Markdown task notes.
 

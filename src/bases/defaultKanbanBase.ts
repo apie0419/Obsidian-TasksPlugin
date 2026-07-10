@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, PRIORITY_WEIGHTS, TASK_TAG } from "../constants";
+import { PRIORITY_WEIGHTS, TASK_FOLDER, TASK_TAG } from "../constants";
 
 function escapeBaseString(value) {
   return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
@@ -11,8 +11,8 @@ function formatPriorityWeightFormula() {
   ), "0");
 }
 
-export function generateDefaultKanbanBase(taskFolder = DEFAULT_SETTINGS.taskFolder) {
-  const folder = escapeBaseString(taskFolder || DEFAULT_SETTINGS.taskFolder);
+export function generateDefaultKanbanBase(taskFolder = TASK_FOLDER) {
+  const folder = escapeBaseString(taskFolder || TASK_FOLDER);
   return `filters:
   and:
     - note.tags.contains("${TASK_TAG}")
