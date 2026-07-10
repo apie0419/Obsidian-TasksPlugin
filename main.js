@@ -38,12 +38,11 @@ var DONE_STATUS = "done";
 var TASK_TAG = "task";
 var LEGACY_TASK_TAG = "tasks";
 var BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
-var PRIORITIES = ["high", "medium", "easy", "low"];
+var PRIORITIES = ["high", "medium", "low"];
 var PRIORITY_WEIGHTS = {
   high: 3,
   medium: 2,
-  easy: 1,
-  low: 0
+  low: 1
 };
 var DEFAULT_SETTINGS = {
   taskFolder: TASK_FOLDER,
@@ -144,13 +143,6 @@ function readDateInputAsIso(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString();
-}
-function getWorkOnText(frontmatter) {
-  const start = frontmatter.work_start || "";
-  const end = frontmatter.work_end || "";
-  if (!start && !end) return "";
-  if (start && end) return `${start} - ${end}`;
-  return start || end;
 }
 
 // src/taskFields.ts
@@ -321,6 +313,9 @@ var EditTaskModal = class extends import_obsidian.Modal {
       notification_amount: (_a = fm.notification_amount) != null ? _a : "",
       notification_unit: fm.notification_unit || "days"
     };
+    if (!PRIORITIES.includes(this.values.priority)) {
+      this.values.priority = "medium";
+    }
     for (const field of plugin.settings.customFields) {
       if (field.type === "date-range") {
         this.values[`${field.id}_start`] = fm[`${field.id}_start`] || "";
@@ -352,7 +347,6 @@ var EditTaskModal = class extends import_obsidian.Modal {
       });
     });
     new import_obsidian.Setting(contentEl).setName("Priority").addDropdown((dropdown) => {
-      dropdown.addOption("", "None");
       for (const priority of PRIORITIES) {
         dropdown.addOption(priority, priority);
       }
@@ -674,6 +668,22 @@ function formatReferenceLabel(value) {
   const alias = target.includes("|") ? target.split("|").pop() : target;
   return alias.split("/").pop();
 }
+function formatCompactDate(value) {
+  return formatDateForInput(value).replace(/-/g, "/");
+}
+function formatDueDateParts(value) {
+  const dateText = formatDateForInput(value);
+  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthIndex = Number(match[2]) - 1;
+  const month = months[monthIndex];
+  if (!month) return null;
+  return {
+    year: match[1],
+    dayMonth: `${Number(match[3])} ${month}`
+  };
+}
 var KanbanBasesView = class extends import_obsidian2.BasesView {
   constructor(controller, containerEl, plugin) {
     super(controller);
@@ -860,34 +870,21 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       }
       this.openTaskMenu(event, task);
     });
-    const cardWorkOn = getWorkOnText(task.frontmatter);
-    const cardDueText = task.frontmatter.due ? formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ") : "";
+    const workStart = formatCompactDate(task.frontmatter.work_start);
+    const workEnd = formatCompactDate(task.frontmatter.work_end);
+    const workRange = workStart && workEnd ? `${workStart} -> ${workEnd}` : workStart || workEnd;
+    const dueDateParts = task.frontmatter.due ? formatDueDateParts(task.frontmatter.due) : null;
     const hero = card.createDiv({ cls: "frontmatter-kanban-card-hero" });
     const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
-    const titleIcon = titleBlock.createSpan({ cls: "frontmatter-kanban-card-title-icon" });
-    (0, import_obsidian2.setIcon)(titleIcon, "file-text");
     const titleText = titleBlock.createDiv({ cls: "frontmatter-kanban-card-title-wrap" });
+    const titleTags = titleText.createDiv({ cls: "frontmatter-kanban-card-tags" });
     if (priority) {
-      titleText.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
+      titleTags.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
+    }
+    if (workRange) {
+      titleTags.createSpan({ cls: "frontmatter-kanban-card-work-tag", text: workRange });
     }
     titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
-    if (cardWorkOn || cardDueText) {
-      const schedule = hero.createDiv({ cls: "frontmatter-kanban-card-schedule" });
-      if (cardWorkOn) {
-        const work = schedule.createDiv({ cls: "frontmatter-kanban-card-schedule-item is-work" });
-        (0, import_obsidian2.setIcon)(work.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar-range");
-        const workText = work.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
-        workText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Work on" });
-        workText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardWorkOn });
-      }
-      if (cardDueText) {
-        const due = schedule.createDiv({ cls: `frontmatter-kanban-card-schedule-item is-due ${getDueClass(task)}` });
-        (0, import_obsidian2.setIcon)(due.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar");
-        const dueText = due.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
-        dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Due date" });
-        dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardDueText });
-      }
-    }
     const summary = this.getCardSummary(task);
     if (summary) {
       card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
@@ -895,22 +892,34 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
     this.renderTodoProgress(card, task);
     const project = formatReferenceLabel(task.frontmatter.project);
     const feature = formatReferenceLabel(task.frontmatter.feature);
-    if (project || feature) {
+    if (project || feature || dueDateParts) {
       card.createDiv({ cls: "frontmatter-kanban-card-divider" });
-      const stats = card.createDiv({ cls: "frontmatter-kanban-card-stats" });
-      if (project) {
-        const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
-        (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
-        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
+      const details = card.createDiv({ cls: "frontmatter-kanban-card-details" });
+      if (project || feature) {
+        const stats = details.createDiv({ cls: "frontmatter-kanban-card-stats" });
+        if (project) {
+          const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
+          (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
+          const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
+        }
+        if (feature) {
+          const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
+          (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
+          const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
+        }
       }
-      if (feature) {
-        const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
-        (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
+      if (dueDateParts) {
+        const item = details.createDiv({ cls: `frontmatter-kanban-card-stat is-due ${getDueClass(task)}` });
+        (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "calendar");
         const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Due date" });
+        const value = body.createSpan({ cls: "frontmatter-kanban-card-stat-value is-due-date" });
+        value.createSpan({ cls: "frontmatter-kanban-card-due-year", text: dueDateParts.year });
+        value.createSpan({ cls: "frontmatter-kanban-card-due-day-month", text: dueDateParts.dayMonth });
       }
     }
     if (false) {
@@ -933,7 +942,7 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       if (false) {
         const due = footer.createSpan({ cls: "frontmatter-kanban-card-date" });
         (0, import_obsidian2.setIcon)(due.createSpan(), "calendar");
-        due.createSpan({ text: formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ") });
+        due.createSpan({ text: formatDateLabel(task.frontmatter.due) || formatDateTimeForInput2(task.frontmatter.due).replace("T", " ") });
       }
       if (task.frontmatter.completed) {
         const completed = footer.createSpan({ cls: "frontmatter-kanban-card-date is-complete" });

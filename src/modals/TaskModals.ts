@@ -138,6 +138,9 @@ export class EditTaskModal extends Modal {
       notification_amount: fm.notification_amount ?? "",
       notification_unit: fm.notification_unit || "days"
     };
+    if (!PRIORITIES.includes(this.values.priority)) {
+      this.values.priority = "medium";
+    }
 
     for (const field of plugin.settings.customFields) {
       if (field.type === "date-range") {
@@ -183,7 +186,6 @@ export class EditTaskModal extends Modal {
     new Setting(contentEl)
       .setName("Priority")
       .addDropdown((dropdown) => {
-        dropdown.addOption("", "None");
         for (const priority of PRIORITIES) {
           dropdown.addOption(priority, priority);
         }

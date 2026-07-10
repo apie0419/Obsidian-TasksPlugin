@@ -422,17 +422,11 @@
 }
 
 .frontmatter-kanban-card-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(112px, 42%);
-  align-items: start;
-  gap: 10px;
+  display: block;
 }
 
 .frontmatter-kanban-card-title-block {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  align-items: start;
-  gap: 9px;
+  display: block;
   min-width: 0;
 }
 
@@ -464,20 +458,29 @@
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
+  gap: 9px;
 }
 
-.frontmatter-kanban-card-priority-tag {
+.frontmatter-kanban-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
   max-width: 100%;
-  padding: 1px 6px;
+}
+
+.frontmatter-kanban-card-priority-tag,
+.frontmatter-kanban-card-work-tag {
+  max-width: 100%;
+  padding: 2px 7px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 999px;
   color: var(--text-muted);
   background: var(--background-secondary);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1.35;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .frontmatter-kanban-card-priority-tag.priority-high {
@@ -499,10 +502,18 @@
   background: color-mix(in srgb, #35c98f 9%, var(--background-secondary));
 }
 
+.frontmatter-kanban-card-work-tag {
+  color: #9a6bff;
+  border-color: color-mix(in srgb, #9a6bff 38%, var(--background-modifier-border));
+  background: color-mix(in srgb, #9a6bff 9%, var(--background-secondary));
+  font-weight: 700;
+  text-transform: none;
+}
+
 .frontmatter-kanban-card-title {
   min-width: 0;
   color: var(--text-normal);
-  font-size: 1.1em;
+  font-size: 1.25em;
   font-weight: 800;
   line-height: 1.18;
   overflow-wrap: anywhere;
@@ -515,7 +526,7 @@
 
 .frontmatter-kanban-card-schedule-item {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -550,8 +561,8 @@
 }
 
 .frontmatter-kanban-card-schedule-icon svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 
 .frontmatter-kanban-card-schedule-text,
@@ -565,7 +576,7 @@
 .frontmatter-kanban-card-schedule-label,
 .frontmatter-kanban-card-stat-label {
   color: var(--text-accent);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -575,10 +586,16 @@
 .frontmatter-kanban-card-stat-value {
   min-width: 0;
   color: var(--text-normal);
-  font-size: var(--font-ui-smaller);
+  font-size: var(--font-ui-small);
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.frontmatter-kanban-card-schedule-value.is-range {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .frontmatter-kanban-card-summary {
@@ -627,6 +644,13 @@
   background: color-mix(in srgb, var(--background-modifier-border) 80%, transparent);
 }
 
+.frontmatter-kanban-card-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(108px, 38%);
+  align-items: stretch;
+  gap: 8px;
+}
+
 .frontmatter-kanban-card-stats {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -666,6 +690,61 @@
   border-color: color-mix(in srgb, #35c98f 45%, var(--background-modifier-border));
 }
 
+.frontmatter-kanban-card-stat.is-due {
+  align-items: center;
+  padding: 6px 7px;
+  border: 1px solid color-mix(in srgb, #4f8cff 42%, var(--background-modifier-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, #4f8cff 8%, var(--background-secondary));
+}
+
+.frontmatter-kanban-card-stat.is-due .frontmatter-kanban-card-stat-icon,
+.frontmatter-kanban-card-stat.is-due .frontmatter-kanban-card-stat-label {
+  color: #4f8cff;
+  border-color: color-mix(in srgb, #4f8cff 45%, var(--background-modifier-border));
+}
+
+.frontmatter-kanban-card-stat.is-due.is-due-yellow {
+  border-color: color-mix(in srgb, #d6a800 58%, var(--background-modifier-border));
+  background: color-mix(in srgb, #d6a800 13%, var(--background-secondary));
+}
+
+.frontmatter-kanban-card-stat.is-due.is-due-yellow .frontmatter-kanban-card-stat-icon,
+.frontmatter-kanban-card-stat.is-due.is-due-yellow .frontmatter-kanban-card-stat-label {
+  color: #d6a800;
+  border-color: color-mix(in srgb, #d6a800 48%, var(--background-modifier-border));
+}
+
+.frontmatter-kanban-card-stat.is-due.is-due-red {
+  border-color: color-mix(in srgb, #d14343 65%, var(--background-modifier-border));
+  background: color-mix(in srgb, #d14343 15%, var(--background-secondary));
+}
+
+.frontmatter-kanban-card-stat.is-due.is-due-red .frontmatter-kanban-card-stat-icon,
+.frontmatter-kanban-card-stat.is-due.is-due-red .frontmatter-kanban-card-stat-label {
+  color: #d14343;
+  border-color: color-mix(in srgb, #d14343 52%, var(--background-modifier-border));
+}
+
+.frontmatter-kanban-card-stat-value.is-due-date {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.05;
+}
+
+.frontmatter-kanban-card-due-year {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.frontmatter-kanban-card-due-day-month {
+  color: var(--text-normal);
+  font-size: 14px;
+  font-weight: 850;
+}
+
 .frontmatter-kanban-card-stat.is-priority .frontmatter-kanban-card-stat-icon,
 .frontmatter-kanban-card-stat.is-priority .frontmatter-kanban-card-stat-label {
   color: #ffb13b;
@@ -684,7 +763,7 @@
 }
 
 @container (max-width: 320px) {
-  .frontmatter-kanban-card-hero {
+  .frontmatter-kanban-card-details {
     grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -10,12 +10,11 @@ export const TASK_TAG = "task";
 export const LEGACY_TASK_TAG = "tasks";
 
 export const BUILT_IN_STATUSES = ["backlog", "nextup", "ongoing", "done"];
-export const PRIORITIES = ["high", "medium", "easy", "low"];
+export const PRIORITIES = ["high", "medium", "low"];
 export const PRIORITY_WEIGHTS = {
   high: 3,
   medium: 2,
-  easy: 1,
-  low: 0
+  low: 1
 };
 
 export const DEFAULT_SETTINGS = {

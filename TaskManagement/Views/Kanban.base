@@ -3,7 +3,7 @@ filters:
     - note.tags.contains("task")
     - file.path.startsWith("TaskManagement/Tasks/")
 formulas:
-  priorityWeight: if(note.priority == "high", 3, if(note.priority == "medium", 2, if(note.priority == "easy", 1, if(note.priority == "low", 0, 0))))
+  priorityWeight: if(note.priority == "high", 3, if(note.priority == "medium", 2, if(note.priority == "low", 1, 0)))
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
   daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
 views:

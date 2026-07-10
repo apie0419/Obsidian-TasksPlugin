@@ -4,7 +4,7 @@ import { BASES_KANBAN_VIEW_TYPE } from "../constants";
 import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
 import { statusEquals } from "../status";
 import { getDueClass, getTaskTitle } from "../taskFields";
-import { formatDateLabel, formatDateTimeForInput, getWorkOnText } from "../utils/date";
+import { formatDateForInput, formatDateLabel, formatDateTimeForInput } from "../utils/date";
 
 const COLUMN_ACCENTS = [
   "#7d8b84",
@@ -36,6 +36,26 @@ function formatReferenceLabel(value) {
   const target = wikilink[1];
   const alias = target.includes("|") ? target.split("|").pop() : target;
   return alias.split("/").pop();
+}
+
+function formatCompactDate(value) {
+  return formatDateForInput(value).replace(/-/g, "/");
+}
+
+function formatDueDateParts(value) {
+  const dateText = formatDateForInput(value);
+  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthIndex = Number(match[2]) - 1;
+  const month = months[monthIndex];
+  if (!month) return null;
+
+  return {
+    year: match[1],
+    dayMonth: `${Number(match[3])} ${month}`
+  };
 }
 
 export class KanbanBasesView extends BasesView {
@@ -257,38 +277,22 @@ export class KanbanBasesView extends BasesView {
       this.openTaskMenu(event, task);
     });
 
-    const cardWorkOn = getWorkOnText(task.frontmatter);
-    const cardDueText = task.frontmatter.due
-      ? formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ")
-      : "";
+    const workStart = formatCompactDate(task.frontmatter.work_start);
+    const workEnd = formatCompactDate(task.frontmatter.work_end);
+    const workRange = workStart && workEnd ? `${workStart} -> ${workEnd}` : workStart || workEnd;
+    const dueDateParts = task.frontmatter.due ? formatDueDateParts(task.frontmatter.due) : null;
 
     const hero = card.createDiv({ cls: "frontmatter-kanban-card-hero" });
     const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
-    const titleIcon = titleBlock.createSpan({ cls: "frontmatter-kanban-card-title-icon" });
-    setIcon(titleIcon, "file-text");
     const titleText = titleBlock.createDiv({ cls: "frontmatter-kanban-card-title-wrap" });
+    const titleTags = titleText.createDiv({ cls: "frontmatter-kanban-card-tags" });
     if (priority) {
-      titleText.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
+      titleTags.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
+    }
+    if (workRange) {
+      titleTags.createSpan({ cls: "frontmatter-kanban-card-work-tag", text: workRange });
     }
     titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
-
-    if (cardWorkOn || cardDueText) {
-      const schedule = hero.createDiv({ cls: "frontmatter-kanban-card-schedule" });
-      if (cardWorkOn) {
-        const work = schedule.createDiv({ cls: "frontmatter-kanban-card-schedule-item is-work" });
-        setIcon(work.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar-range");
-        const workText = work.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
-        workText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Work on" });
-        workText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardWorkOn });
-      }
-      if (cardDueText) {
-        const due = schedule.createDiv({ cls: `frontmatter-kanban-card-schedule-item is-due ${getDueClass(task)}` });
-        setIcon(due.createSpan({ cls: "frontmatter-kanban-card-schedule-icon" }), "calendar");
-        const dueText = due.createDiv({ cls: "frontmatter-kanban-card-schedule-text" });
-        dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-label", text: "Due date" });
-        dueText.createSpan({ cls: "frontmatter-kanban-card-schedule-value", text: cardDueText });
-      }
-    }
 
     const summary = this.getCardSummary(task);
     if (summary) {
@@ -299,22 +303,34 @@ export class KanbanBasesView extends BasesView {
 
     const project = formatReferenceLabel(task.frontmatter.project);
     const feature = formatReferenceLabel(task.frontmatter.feature);
-    if (project || feature) {
+    if (project || feature || dueDateParts) {
       card.createDiv({ cls: "frontmatter-kanban-card-divider" });
-      const stats = card.createDiv({ cls: "frontmatter-kanban-card-stats" });
-      if (project) {
-        const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
-        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
-        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
+      const details = card.createDiv({ cls: "frontmatter-kanban-card-details" });
+      if (project || feature) {
+        const stats = details.createDiv({ cls: "frontmatter-kanban-card-stats" });
+        if (project) {
+          const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
+          setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
+          const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
+        }
+        if (feature) {
+          const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
+          setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
+          const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
+          body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
+        }
       }
-      if (feature) {
-        const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
-        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
+      if (dueDateParts) {
+        const item = details.createDiv({ cls: `frontmatter-kanban-card-stat is-due ${getDueClass(task)}` });
+        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "calendar");
         const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Due date" });
+        const value = body.createSpan({ cls: "frontmatter-kanban-card-stat-value is-due-date" });
+        value.createSpan({ cls: "frontmatter-kanban-card-due-year", text: dueDateParts.year });
+        value.createSpan({ cls: "frontmatter-kanban-card-due-day-month", text: dueDateParts.dayMonth });
       }
     }
     if (false) {
