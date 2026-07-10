@@ -709,9 +709,9 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
     }
   }
   getColumnWidth() {
-    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("columnWidth")) : 280;
-    if (!Number.isFinite(configured)) return 280;
-    return Math.min(420, Math.max(220, configured));
+    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("columnWidth")) : 380;
+    if (!Number.isFinite(configured)) return 380;
+    return Math.min(560, Math.max(280, configured));
   }
   getGroups() {
     const groupedData = this.data && Array.isArray(this.data.groupedData) ? this.data.groupedData : [];
@@ -887,7 +887,6 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
     }
     this.renderTodoProgress(card, task);
-    const workOn = getWorkOnText(task.frontmatter);
     const project = formatReferenceLabel(task.frontmatter.project);
     const feature = formatReferenceLabel(task.frontmatter.feature);
     if (task.frontmatter.priority || project || feature) {
@@ -926,11 +925,11 @@ var KanbanBasesView = class extends import_obsidian2.BasesView {
       if (task.frontmatter.priority) {
         meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
       }
-      if (workOn) {
+      if (false) {
         meta.createSpan({ cls: "frontmatter-kanban-card-work", text: `Work on ${workOn}` });
       }
     }
-    if (task.frontmatter.due || task.frontmatter.completed) {
+    if (task.frontmatter.completed) {
       const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
       if (false) {
         const due = footer.createSpan({ cls: "frontmatter-kanban-card-date" });
@@ -1025,7 +1024,7 @@ views:
       - property: note.due
         direction: ASC
     options:
-      columnWidth: 280
+      columnWidth: 380
 `;
 }
 
@@ -1327,9 +1326,9 @@ var FrontmatterKanbanPlugin = class extends import_obsidian4.Plugin {
           type: "slider",
           key: "columnWidth",
           displayName: "Column width",
-          default: 280,
-          min: 220,
-          max: 420,
+          default: 380,
+          min: 280,
+          max: 560,
           step: 20
         }
       ]

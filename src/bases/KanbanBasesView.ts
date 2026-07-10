@@ -84,9 +84,9 @@ export class KanbanBasesView extends BasesView {
   getColumnWidth() {
     const configured = this.config && typeof this.config.get === "function"
       ? Number(this.config.get("columnWidth"))
-      : 280;
-    if (!Number.isFinite(configured)) return 280;
-    return Math.min(420, Math.max(220, configured));
+      : 380;
+    if (!Number.isFinite(configured)) return 380;
+    return Math.min(560, Math.max(280, configured));
   }
 
   getGroups() {
@@ -291,7 +291,6 @@ export class KanbanBasesView extends BasesView {
 
     this.renderTodoProgress(card, task);
 
-    const workOn = getWorkOnText(task.frontmatter);
     const project = formatReferenceLabel(task.frontmatter.project);
     const feature = formatReferenceLabel(task.frontmatter.feature);
     if (task.frontmatter.priority || project || feature) {
@@ -319,7 +318,7 @@ export class KanbanBasesView extends BasesView {
         body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: String(task.frontmatter.priority).toUpperCase() });
       }
     }
-    if (false && (task.frontmatter.priority || workOn || project || feature)) {
+    if (false) {
       const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
       if (project) {
         meta.createSpan({ cls: "frontmatter-kanban-card-reference is-project", text: `🚀 ${project}` });
@@ -330,14 +329,14 @@ export class KanbanBasesView extends BasesView {
       if (task.frontmatter.priority) {
         meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
       }
-      if (workOn) {
+      if (false) {
         meta.createSpan({ cls: "frontmatter-kanban-card-work", text: `Work on ${workOn}` });
       }
     }
 
-    if (task.frontmatter.due || task.frontmatter.completed) {
+    if (task.frontmatter.completed) {
       const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
-      if (false && task.frontmatter.due) {
+      if (false) {
         const due = footer.createSpan({ cls: "frontmatter-kanban-card-date" });
         setIcon(due.createSpan(), "calendar");
         due.createSpan({ text: formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ") });

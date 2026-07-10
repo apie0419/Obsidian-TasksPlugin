@@ -128,9 +128,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
           type: "slider",
           key: "columnWidth",
           displayName: "Column width",
-          default: 280,
-          min: 220,
-          max: 420,
+          default: 380,
+          min: 280,
+          max: 560,
           step: 20
         }
       ]

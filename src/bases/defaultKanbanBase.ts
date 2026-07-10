@@ -44,6 +44,6 @@ views:
       - property: note.due
         direction: ASC
     options:
-      columnWidth: 280
+      columnWidth: 380
 `;
 }
