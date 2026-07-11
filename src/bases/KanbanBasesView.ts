@@ -7,14 +7,22 @@ import { getDueClass, getTaskTitle } from "../taskFields";
 import { formatDateForInput, formatDateLabel, formatDateTimeForInput } from "../utils/date";
 
 const COLUMN_ACCENTS = [
-  "#7d8b84",
-  "#8793ad",
-  "#86a39a",
-  "#b39a7c",
-  "#819f88",
-  "#9a8fa9",
-  "#b28c8c"
+  "#829C92",
+  "#8D7896",
+  "#70899D",
+  "#A68A5D"
 ];
+
+const STATUS_ACCENTS = {
+  backlog: "#829C92",
+  nextup: "#8D7896",
+  next: "#8D7896",
+  "next up": "#8D7896",
+  ongoing: "#70899D",
+  inprogress: "#70899D",
+  "in progress": "#70899D",
+  done: "#A68A5D"
+};
 
 function valueToString(value) {
   if (value === undefined || value === null) return "";
@@ -26,6 +34,12 @@ function valueToString(value) {
 
 function getEntryFile(entry) {
   return entry && entry.file instanceof TFile ? entry.file : null;
+}
+
+function getStatusAccent(status, fallback) {
+  const normalized = String(status || "").trim().toLowerCase().replace(/[-_]+/g, " ");
+  const compact = normalized.replace(/\s+/g, "");
+  return STATUS_ACCENTS[normalized] || STATUS_ACCENTS[compact] || fallback;
 }
 
 function formatReferenceLabel(value) {
@@ -182,7 +196,7 @@ export class KanbanBasesView extends BasesView {
   renderColumn(board, status, entries, columnIndex) {
     const column = board.createDiv({ cls: "frontmatter-kanban-column" });
     column.dataset.status = status;
-    column.style.setProperty("--kanban-column-accent", COLUMN_ACCENTS[columnIndex % COLUMN_ACCENTS.length]);
+    column.style.setProperty("--kanban-column-accent", getStatusAccent(status, COLUMN_ACCENTS[columnIndex % COLUMN_ACCENTS.length]));
 
     const header = column.createDiv({ cls: "frontmatter-kanban-column-header" });
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
