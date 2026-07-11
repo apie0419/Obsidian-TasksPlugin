@@ -879,7 +879,8 @@
   min-width: 132px;
   height: 30px;
   padding: 0 10px;
-  justify-content: flex-start;
+  justify-content: center;
+  text-align: center;
   color: var(--text-normal);
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
@@ -935,12 +936,23 @@
   font-size: var(--font-ui-small);
 }
 
+.modal:has(.frontmatter-kanban-date-picker-modal) {
+  width: 344px;
+  max-width: calc(100vw - 40px);
+}
+
 .frontmatter-kanban-date-picker-modal {
-  width: min(360px, calc(100vw - 40px));
+  width: 100%;
 }
 
 .frontmatter-kanban-date-picker-modal h2 {
   margin-bottom: 14px;
+  text-align: center;
+}
+
+.frontmatter-kanban-date-picker-block {
+  width: 302px;
+  margin: 0 auto;
 }
 
 .frontmatter-kanban-date-picker-header {
@@ -970,6 +982,7 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 5px;
+  min-height: 254px;
 }
 
 .frontmatter-kanban-date-picker-weekday {
@@ -987,6 +1000,9 @@
 .frontmatter-kanban-date-picker-day {
   height: 32px;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 6px;
   color: var(--text-normal);
   background: var(--background-secondary);
@@ -1029,6 +1045,9 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  width: 302px;
+  margin-left: auto;
+  margin-right: auto;
   margin-top: 16px;
 }
 

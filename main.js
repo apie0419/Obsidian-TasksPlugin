@@ -287,6 +287,9 @@ function getReferenceLabel(kind) {
 function getReferenceEmoji(kind) {
   return kind === "feature" ? "\u{1F6E0}\uFE0F" : "\u{1F680}";
 }
+function getReferenceDisplayValue(plugin, value) {
+  return plugin.getReferenceName(value) || String(value || "").trim();
+}
 var DatePickerModal = class extends import_obsidian.Modal {
   constructor(app, options) {
     super(app);
@@ -307,7 +310,8 @@ var DatePickerModal = class extends import_obsidian.Modal {
     contentEl.empty();
     contentEl.addClass("frontmatter-kanban-date-picker-modal");
     contentEl.createEl("h2", { text: this.titleText });
-    const header = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-header" });
+    const pickerBlock = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-block" });
+    const header = pickerBlock.createDiv({ cls: "frontmatter-kanban-date-picker-header" });
     const previous = header.createEl("button", { type: "button", text: "<" });
     previous.addEventListener("click", () => {
       this.viewDate = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth() - 1, 1);
@@ -322,7 +326,7 @@ var DatePickerModal = class extends import_obsidian.Modal {
       this.viewDate = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth() + 1, 1);
       this.render();
     });
-    const grid = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-grid" });
+    const grid = pickerBlock.createDiv({ cls: "frontmatter-kanban-date-picker-grid" });
     for (const weekday of WEEKDAY_LABELS) {
       grid.createDiv({ cls: "frontmatter-kanban-date-picker-weekday", text: weekday });
     }
@@ -346,8 +350,12 @@ var DatePickerModal = class extends import_obsidian.Modal {
         this.render();
       });
     }
+    const occupiedCells = firstDay + daysInMonth;
+    for (let index = occupiedCells; index < 42; index += 1) {
+      grid.createDiv({ cls: "frontmatter-kanban-date-picker-empty" });
+    }
     if (this.includeTime) {
-      const time = contentEl.createDiv({ cls: "frontmatter-kanban-date-picker-time" });
+      const time = pickerBlock.createDiv({ cls: "frontmatter-kanban-date-picker-time" });
       time.createSpan({ text: "Time" });
       const hour = time.createEl("select");
       for (let value = 0; value < 24; value += 1) {
@@ -441,9 +449,9 @@ function renderReferenceSetting(modal, container, label, key, sourcePath = "") {
   const input = setting.controlEl.createEl("input", {
     type: "text",
     cls: "frontmatter-kanban-reference-input",
-    placeholder: `[[${label} note]]`
+    placeholder: `${label} name`
   });
-  input.value = modal.values[key] || "";
+  input.value = getReferenceDisplayValue(modal.plugin, modal.values[key]);
   input.addEventListener("input", () => {
     modal.values[key] = input.value;
   });
@@ -460,7 +468,7 @@ function renderReferenceSetting(modal, container, label, key, sourcePath = "") {
     }
     new ReferenceNoteSuggestModal(modal.app, modal.plugin, key, sourcePath, modal.values.project, (link) => {
       modal.values[key] = link;
-      input.value = link;
+      input.value = getReferenceDisplayValue(modal.plugin, link);
     }).open();
   });
   new import_obsidian.ButtonComponent(setting.controlEl).setIcon("x").setTooltip("Clear").onClick(() => {
