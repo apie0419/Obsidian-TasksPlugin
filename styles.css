@@ -281,6 +281,26 @@
   overscroll-behavior: contain;
 }
 
+.frontmatter-kanban-view-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px 0;
+  background: var(--fk-background);
+}
+
+.frontmatter-kanban-view-toolbar .frontmatter-kanban-view-new {
+  min-height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--fk-text-primary);
+  background: color-mix(in srgb, var(--fk-card) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fk-border) 84%, transparent);
+  border-radius: 6px;
+}
+
 .frontmatter-kanban-column {
   display: flex;
   flex-direction: column;
@@ -1266,6 +1286,7 @@
 
 .frontmatter-timeline-nav button,
 .frontmatter-timeline-toolbar .frontmatter-timeline-today,
+.frontmatter-timeline-toolbar .frontmatter-timeline-new,
 .frontmatter-timeline-sidebar-header button {
   height: 36px;
   min-width: 36px;
@@ -1282,6 +1303,7 @@
 
 .frontmatter-timeline-nav button:hover,
 .frontmatter-timeline-toolbar .frontmatter-timeline-today:hover,
+.frontmatter-timeline-toolbar .frontmatter-timeline-new:hover,
 .frontmatter-timeline-sidebar-header button:hover {
   background: color-mix(in srgb, var(--fk-border) 34%, transparent);
 }
@@ -1537,7 +1559,7 @@
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-divider,
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-details,
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-footer {
-  display: none;
+  display: revert;
 }
 
 @media (max-width: 980px) {
@@ -1559,4 +1581,694 @@
   .frontmatter-timeline-sidebar {
     min-height: 360px;
   }
+}
+
+.frontmatter-timeline-toolbar.is-compact {
+  grid-template-columns: auto minmax(260px, 1fr) auto;
+}
+
+.frontmatter-timeline-week-grid {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--fk-border) 70%, transparent) 1px, transparent 1px) 0 0 / var(--timeline-day-width) 100% repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--fk-border) 48%, transparent) 1px, transparent 1px) 0 64px / 100% var(--timeline-lane-height) repeat,
+    var(--fk-background);
+}
+
+.frontmatter-timeline-week-grid .frontmatter-timeline-day-header {
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.frontmatter-timeline-task {
+  position: relative;
+  padding: 8px 7px;
+}
+
+.frontmatter-timeline-task.is-resizing {
+  z-index: 8;
+}
+
+.frontmatter-timeline-grid-card,
+.frontmatter-timeline-day-card {
+  min-height: 0;
+  height: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left-width: 3px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-title,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-title {
+  font-size: 15px;
+  line-height: 1.18;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-title-wrap,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-title-wrap {
+  gap: 5px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-tags,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-tags {
+  gap: 4px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-status-tag,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-status-tag,
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-status-tag {
+  padding: 1px 6px;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-divider,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-divider {
+  margin: 6px 0 5px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-details,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stats,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stats {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project {
+  display: none;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat-icon,
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat-label,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-icon,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-label {
+  display: none;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat-body,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-body {
+  min-width: 0;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat-value,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-value {
+  max-width: 100%;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 34%, var(--fk-border));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 78%, var(--fk-text-primary));
+  background: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 8%, transparent);
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-due,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-due .frontmatter-kanban-card-stat-value,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due .frontmatter-kanban-card-stat-value {
+  color: var(--fk-due-date);
+  border-color: color-mix(in srgb, var(--fk-due-date) 44%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-due-date) 9%, transparent);
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat-value.is-due-date,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-value.is-due-date {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 3px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-due-year,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-due-year {
+  display: none;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-due-day-month,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-due-day-month {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.frontmatter-timeline-resize-handle {
+  position: absolute;
+  top: 17px;
+  bottom: 17px;
+  z-index: 9;
+  width: 9px;
+  border-radius: 999px;
+  cursor: ew-resize;
+  background: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 58%, var(--fk-text-primary));
+  opacity: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.frontmatter-timeline-resize-handle.is-start {
+  left: 2px;
+}
+
+.frontmatter-timeline-resize-handle.is-end {
+  right: 2px;
+}
+
+.frontmatter-timeline-task:hover .frontmatter-timeline-resize-handle,
+.frontmatter-timeline-task.is-resizing .frontmatter-timeline-resize-handle {
+  opacity: 0.95;
+}
+
+.frontmatter-timeline-resize-handle:hover {
+  transform: scaleX(1.25);
+}
+
+.frontmatter-timeline-month-main {
+  overflow: auto;
+}
+
+.frontmatter-timeline-month {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: 34px;
+  grid-auto-rows: minmax(112px, 1fr);
+  gap: 1px;
+  padding: 1px;
+  background: color-mix(in srgb, var(--fk-border) 58%, transparent);
+}
+
+.frontmatter-timeline-month-weekday {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fk-text-secondary);
+  background: var(--fk-background);
+  font-size: var(--font-ui-small);
+  font-weight: 760;
+}
+
+.frontmatter-timeline-month-day {
+  min-width: 0;
+  padding: 8px;
+  background: var(--fk-background);
+  overflow: hidden;
+}
+
+.frontmatter-timeline-month-day.is-outside {
+  color: var(--fk-text-muted);
+  background: color-mix(in srgb, var(--fk-background) 84%, #000);
+}
+
+.frontmatter-timeline-month-day.is-empty {
+  background: color-mix(in srgb, var(--fk-background) 72%, #000);
+}
+
+.frontmatter-timeline-month-day.is-today {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fk-feature) 72%, var(--fk-border));
+}
+
+.frontmatter-timeline-month-date {
+  margin-bottom: 6px;
+  color: var(--fk-text-primary);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.frontmatter-timeline-month-events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.frontmatter-timeline-month-task {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px;
+  border: 1px solid color-mix(in srgb, var(--kanban-column-accent) 36%, var(--fk-border));
+  border-radius: 5px;
+  color: var(--fk-text-primary);
+  background: color-mix(in srgb, var(--kanban-column-accent) 10%, var(--fk-card));
+  cursor: pointer;
+}
+
+.frontmatter-timeline-month-task-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--kanban-column-accent);
+}
+
+.frontmatter-timeline-month-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.frontmatter-timeline-month-more {
+  color: var(--fk-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.frontmatter-timeline-day-main {
+  overflow: auto;
+}
+
+.frontmatter-timeline-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.frontmatter-timeline-day-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.frontmatter-timeline-day-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fk-text-primary);
+  font-size: var(--font-ui-medium);
+  font-weight: 800;
+}
+
+.frontmatter-timeline-day-count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--fk-text-secondary);
+  background: color-mix(in srgb, var(--fk-border) 48%, transparent);
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.frontmatter-timeline-day-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.frontmatter-timeline-day-card {
+  height: auto;
+}
+
+.frontmatter-timeline-sidebar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.frontmatter-timeline-sidebar-meta span {
+  max-width: 100%;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 76%, var(--fk-text-primary));
+  background: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 34%, var(--fk-border));
+  font-size: 10px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.frontmatter-kanban-card.is-done {
+  filter: grayscale(0.82);
+  opacity: 0.58;
+  border-left-color: var(--fk-text-muted);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--fk-text-muted) 9%, transparent), transparent 42%),
+    color-mix(in srgb, var(--fk-card) 76%, #000);
+}
+
+.frontmatter-timeline-toolbar.is-compact {
+  grid-template-columns: auto minmax(260px, 1fr) auto auto auto;
+}
+
+.frontmatter-timeline-mode-switch {
+  grid-template-columns: repeat(3, 54px);
+}
+
+.frontmatter-timeline-mode-switch button {
+  min-width: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle {
+  height: 36px;
+  padding: 0 11px;
+  color: var(--fk-text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fk-border) 80%, transparent);
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: var(--font-ui-small);
+  font-weight: 700;
+}
+
+.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle:hover,
+.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle.is-active {
+  color: var(--fk-text-primary);
+  background: color-mix(in srgb, var(--fk-feature) 16%, transparent);
+  border-color: color-mix(in srgb, var(--fk-feature) 44%, var(--fk-border));
+}
+
+.frontmatter-timeline-drop-preview {
+  z-index: 3;
+  display: none;
+  margin: 8px 6px;
+  border: 2px dashed color-mix(in srgb, var(--fk-feature) 78%, var(--fk-text-primary));
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--fk-feature) 16%, transparent) 0 8px,
+      color-mix(in srgb, var(--fk-feature) 6%, transparent) 8px 16px
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--fk-feature) 22%, transparent),
+    0 0 22px color-mix(in srgb, var(--fk-feature) 14%, transparent);
+  pointer-events: none;
+}
+
+.frontmatter-timeline-drop-preview.is-visible {
+  display: block;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project {
+  display: inline-flex;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project .frontmatter-kanban-card-stat-value,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project .frontmatter-kanban-card-stat-value {
+  color: var(--fk-project);
+  border-color: color-mix(in srgb, var(--fk-project) 42%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-project) 9%, transparent);
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-feature .frontmatter-kanban-card-stat-value,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-feature .frontmatter-kanban-card-stat-value {
+  color: var(--fk-feature);
+  border-color: color-mix(in srgb, var(--fk-feature) 42%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-feature) 9%, transparent);
+}
+
+.frontmatter-timeline-month-day.is-drop-target {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--fk-feature) 14%, transparent) 0 8px,
+      color-mix(in srgb, var(--fk-feature) 5%, transparent) 8px 16px
+    ),
+    var(--fk-background);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--fk-feature) 72%, var(--fk-border));
+}
+
+.frontmatter-timeline-month-task {
+  position: relative;
+}
+
+.frontmatter-timeline-month-task.is-done {
+  filter: grayscale(0.82);
+  opacity: 0.58;
+  border-color: color-mix(in srgb, var(--fk-text-muted) 44%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-text-muted) 10%, var(--fk-card));
+}
+
+.frontmatter-timeline-month-task.is-dragging {
+  opacity: 0.45;
+}
+
+.frontmatter-timeline-month-resize-handle {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  z-index: 3;
+  width: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--kanban-column-accent) 68%, var(--fk-text-primary));
+  opacity: 0;
+  cursor: ew-resize;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.frontmatter-timeline-month-resize-handle.is-start {
+  left: 1px;
+}
+
+.frontmatter-timeline-month-resize-handle.is-end {
+  right: 1px;
+}
+
+.frontmatter-timeline-month-task:hover .frontmatter-timeline-month-resize-handle,
+.frontmatter-timeline-month-task.is-resizing .frontmatter-timeline-month-resize-handle {
+  opacity: 0.9;
+}
+
+.frontmatter-timeline-month-resize-handle:hover {
+  transform: scaleX(1.25);
+}
+
+.frontmatter-timeline-sidebar-header {
+  grid-template-columns: minmax(0, 1fr) 36px;
+}
+
+.frontmatter-timeline-sidebar-section-title {
+  cursor: pointer;
+  user-select: none;
+}
+
+.frontmatter-timeline-sidebar-section-title:hover {
+  color: var(--fk-text-primary);
+}
+
+.frontmatter-timeline-sidebar-collapse-icon {
+  width: 14px;
+  color: var(--timeline-section-accent);
+  font-weight: 900;
+  text-align: center;
+}
+
+.frontmatter-timeline-sidebar-section.is-collapsed .frontmatter-timeline-sidebar-list {
+  display: none;
+}
+
+.frontmatter-timeline-week-grid {
+  width: 100%;
+  min-width: 100%;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--fk-border) 62%, transparent) 1px, transparent 1px) 0 0 / calc(100% / var(--timeline-visible-days, 7)) 100% repeat,
+    var(--fk-background);
+}
+
+.frontmatter-timeline-grid {
+  background: var(--fk-background);
+}
+
+.frontmatter-timeline-drop-column {
+  border-right: 0;
+  min-height: 100%;
+}
+
+.frontmatter-timeline-week-grid .frontmatter-timeline-drop-column.is-weekend {
+  background: color-mix(in srgb, var(--fk-high) 9%, transparent);
+}
+
+.frontmatter-timeline-day-header {
+  border-right: 0;
+}
+
+.frontmatter-timeline-day-header,
+.frontmatter-timeline-month-weekday {
+  border-bottom: 1px solid color-mix(in srgb, var(--fk-border) 58%, transparent);
+}
+
+.frontmatter-timeline-month {
+  gap: 0;
+  background: var(--fk-background);
+}
+
+.frontmatter-timeline-month-day {
+  position: relative;
+  z-index: 1;
+  border: 0;
+}
+
+.frontmatter-timeline-shell.is-sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr) 48px;
+}
+
+.frontmatter-timeline-sidebar.is-collapsed {
+  align-items: center;
+}
+
+.frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-header {
+  width: 100%;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 8px 5px;
+}
+
+.frontmatter-timeline-sidebar-toggle {
+  width: 36px;
+}
+
+.frontmatter-timeline-month-task {
+  z-index: 4;
+  align-self: start;
+  height: 20px;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.frontmatter-timeline-month-task-due {
+  color: var(--fk-due-date);
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.frontmatter-timeline-sidebar-header {
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.frontmatter-timeline-sidebar-title {
+  grid-column: 2;
+}
+
+.frontmatter-timeline-sidebar-toggle {
+  width: 36px;
+}
+
+.frontmatter-timeline-sidebar-header button {
+  justify-self: center;
+}
+
+.frontmatter-timeline-sidebar-group-controls {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.frontmatter-timeline-sidebar-group-controls button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fk-text-secondary);
+  background: color-mix(in srgb, var(--fk-card) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fk-border) 78%, transparent);
+  border-radius: 5px;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.frontmatter-timeline-sidebar-group-controls button:hover {
+  color: var(--fk-text-primary);
+  border-color: var(--timeline-section-accent);
+}
+
+.frontmatter-timeline-full-card.frontmatter-kanban-card {
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.frontmatter-timeline-full-card .frontmatter-kanban-card-title {
+  font-size: 1.25em;
+  line-height: 1.18;
+}
+
+.frontmatter-timeline-full-card.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-summary {
+  display: block;
+}
+
+.frontmatter-timeline-full-card.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-todos {
+  display: grid;
+}
+
+.frontmatter-timeline-full-card.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-divider {
+  display: block;
+}
+
+.frontmatter-timeline-full-card.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-details {
+  display: grid;
+}
+
+.frontmatter-timeline-full-card.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-footer {
+  display: none;
+}
+
+.frontmatter-timeline-full-card .frontmatter-kanban-card-footer {
+  display: none;
+}
+
+.frontmatter-timeline-sidebar-card {
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.20);
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-title {
+  font-size: 1.25em;
+  line-height: 1.18;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-summary {
+  display: block;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-todos {
+  display: grid;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-divider {
+  display: block;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-details {
+  display: grid;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-footer {
+  display: flex;
 }

@@ -6,6 +6,7 @@ export const VIEWS_FOLDER = `${ROOT_FOLDER}/Views`;
 export const PROJECT_FOLDER = `${ROOT_FOLDER}/Projects`;
 export const FEATURE_FOLDER = `${PROJECT_FOLDER}/Features`;
 export const DEFAULT_KANBAN_BASE_FILE = `${VIEWS_FOLDER}/Kanban.base`;
+export const DEFAULT_TIMELINE_BASE_FILE = `${VIEWS_FOLDER}/Timeline.base`;
 export const DONE_STATUS = "done";
 export const TASK_TAG = "task";
 export const LEGACY_TASK_TAG = "tasks";

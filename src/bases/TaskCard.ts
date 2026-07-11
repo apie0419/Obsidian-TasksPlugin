@@ -1,5 +1,6 @@
 import { Menu, setIcon } from "obsidian";
 import { EditTaskModal } from "../modals/TaskModals";
+import { isDoneStatus } from "../status";
 import { getDueClass, getTaskTitle } from "../taskFields";
 import { formatDateForInput, formatDateLabel, formatDateTimeForInput } from "../utils/date";
 
@@ -48,6 +49,16 @@ export function openTaskMenu(host, event, task) {
     .setTitle("Open note")
     .setIcon("file-text")
     .onClick(() => host.plugin.openTaskFile(task.file)));
+  if (host.plugin.settings && Array.isArray(host.plugin.settings.statuses)) {
+    menu.addSeparator();
+    for (const status of host.plugin.settings.statuses) {
+      const isCurrent = String(task.frontmatter.status || host.plugin.getDefaultStatus()).toLowerCase() === String(status).toLowerCase();
+      menu.addItem((item) => item
+        .setTitle(`Status: ${status}`)
+        .setIcon(isCurrent ? "check" : "circle")
+        .onClick(() => host.plugin.updateTaskStatus(task.file, status)));
+    }
+  }
   menu.addSeparator();
   menu.addItem((item) => item
     .setTitle("Delete task")
@@ -60,8 +71,9 @@ export function openTaskMenu(host, event, task) {
 export function renderTaskCard(host, cards, task, options = {}) {
   const priority = String(task.frontmatter.priority || "").trim().toLowerCase();
   const priorityClass = priority ? `priority-${priority}` : "";
+  const doneClass = isDoneStatus(task.frontmatter.status) ? "is-done" : "";
   const extraClass = options.extraClass || "";
-  const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass} ${extraClass}`.trim() });
+  const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass} ${doneClass} ${extraClass}`.trim() });
   if (options.accent) card.style.setProperty("--kanban-column-accent", options.accent);
   card.draggable = options.draggable !== false;
 
@@ -119,7 +131,7 @@ export function renderTaskCard(host, cards, task, options = {}) {
   const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
   const titleText = titleBlock.createDiv({ cls: "frontmatter-kanban-card-title-wrap" });
   const titleTags = titleText.createDiv({ cls: "frontmatter-kanban-card-tags" });
-  if (priority) {
+  if (priority && !options.hidePriorityBadge) {
     titleTags.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
   }
   if (options.badgeMode === "status") {
@@ -130,16 +142,18 @@ export function renderTaskCard(host, cards, task, options = {}) {
   }
   titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
 
-  const summary = getCardSummary(task);
+  const summary = options.hideSummary ? "" : getCardSummary(task);
   if (summary) {
     card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
   }
 
-  renderTodoProgress(host, card, task);
+  if (!options.hideTodos) {
+    renderTodoProgress(host, card, task);
+  }
 
   const project = formatReferenceLabel(task.frontmatter.project);
   const feature = formatReferenceLabel(task.frontmatter.feature);
-  if (project || feature || dueDateParts) {
+  if (!options.hideDetails && (project || feature || dueDateParts)) {
     card.createDiv({ cls: "frontmatter-kanban-card-divider" });
     const details = card.createDiv({ cls: "frontmatter-kanban-card-details" });
     if (project || feature) {
@@ -170,7 +184,7 @@ export function renderTaskCard(host, cards, task, options = {}) {
     }
   }
 
-  if (task.frontmatter.completed) {
+  if (task.frontmatter.completed && !options.hideCompletedFooter) {
     const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
     const completed = footer.createSpan({ cls: "frontmatter-kanban-card-date is-complete" });
     setIcon(completed.createSpan(), "check-circle-2");

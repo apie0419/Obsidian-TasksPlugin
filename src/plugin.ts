@@ -4,6 +4,7 @@ import {
   BASES_TIMELINE_VIEW_TYPE,
   DEFAULT_SETTINGS,
   DEFAULT_KANBAN_BASE_FILE,
+  DEFAULT_TIMELINE_BASE_FILE,
   FEATURE_FOLDER,
   FIELD_TYPES,
   LEGACY_TASK_TAG,
@@ -15,7 +16,7 @@ import {
 } from "./constants";
 import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
 import { buildTimelineBasesViewFactory } from "./bases/TimelineBasesView";
-import { generateDefaultKanbanBase, generateTimelineBaseViewBlock } from "./bases/defaultKanbanBase";
+import { generateDefaultKanbanBase, generateDefaultTimelineBase, generateTimelineBaseViewBlock } from "./bases/defaultKanbanBase";
 import { CreateTaskModal } from "./modals/TaskModals";
 import { KanbanSettingTab } from "./settings/KanbanSettingTab";
 import { cleanStatus, dedupeStatuses, isDoneStatus, statusEquals } from "./status";
@@ -42,6 +43,13 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "open-taskmanagement-timeline",
+      name: "Open Timeline",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "y" }],
+      callback: () => this.activateTimelineView()
+    });
+
+    this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
@@ -64,6 +72,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     await this.ensureStorageFolders();
     await this.ensureKanbanBaseFile();
+    await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
     this.syncDerivedFields();
     this.checkNotifications();
@@ -127,6 +136,13 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
+  async activateTimelineView() {
+    const file = await this.ensureTimelineBaseFile();
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file);
+    this.app.workspace.revealLeaf(leaf);
+  }
+
   async openTaskFile(file) {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file, { active: true });
@@ -174,10 +190,16 @@ export default class FrontmatterKanbanPlugin extends Plugin {
           type: "slider",
           key: "laneHeight",
           displayName: "Lane height",
-          default: 178,
-          min: 132,
-          max: 260,
+          default: 118,
+          min: 84,
+          max: 180,
           step: 8
+        },
+        {
+          type: "toggle",
+          key: "hideWeekends",
+          displayName: "Hide weekends",
+          default: false
         }
       ]
     });
@@ -191,6 +213,10 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     return DEFAULT_KANBAN_BASE_FILE;
   }
 
+  getTimelineBasePath() {
+    return DEFAULT_TIMELINE_BASE_FILE;
+  }
+
   async ensureKanbanBaseFile() {
     const path = this.getKanbanBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
@@ -202,6 +228,16 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
     return this.createMarkdownFile(path, generateDefaultKanbanBase(this.getTaskFolder()));
+  }
+
+  async ensureTimelineBaseFile() {
+    const path = this.getTimelineBasePath();
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) return existing;
+
+    const folder = path.split("/").slice(0, -1).join("/");
+    await this.ensureFolder(folder);
+    return this.createMarkdownFile(path, generateDefaultTimelineBase(this.getTaskFolder()));
   }
 
   async ensureStorageFolders() {
@@ -254,6 +290,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       } else {
         nextContents = `${nextContents.trimEnd()}\nviews:\n${generateTimelineBaseViewBlock()}`;
       }
+    } else if (!nextContents.includes("hideWeekends:")) {
+      nextContents = nextContents.replace(/(\n\s+laneHeight:\s+\d+)/, "$1\n      hideWeekends: false");
     }
 
     if (nextContents === contents) return;

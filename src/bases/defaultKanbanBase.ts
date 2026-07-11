@@ -49,6 +49,21 @@ ${generateTimelineBaseViewBlock()}
 `;
 }
 
+export function generateDefaultTimelineBase(taskFolder = TASK_FOLDER) {
+  const folder = escapeBaseString(taskFolder || TASK_FOLDER);
+  return `filters:
+  and:
+    - note.tags.contains("${TASK_TAG}")
+    - file.path.startsWith("${folder}/")
+formulas:
+  priorityWeight: ${formatPriorityWeightFormula()}
+  isOverdue: note.due && date(note.due) < today() && note.status != "done"
+  daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
+views:
+${generateTimelineBaseViewBlock()}
+`;
+}
+
 export function generateTimelineBaseViewBlock() {
   return `  - type: ${BASES_TIMELINE_VIEW_TYPE}
     name: Timeline
@@ -71,7 +86,8 @@ export function generateTimelineBaseViewBlock() {
       - property: note.due
         direction: ASC
     options:
-      dayWidth: 170
-      laneHeight: 178
+      dayWidth: 150
+      laneHeight: 118
+      hideWeekends: false
 `;
 }

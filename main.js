@@ -35,6 +35,7 @@ var VIEWS_FOLDER = `${ROOT_FOLDER}/Views`;
 var PROJECT_FOLDER = `${ROOT_FOLDER}/Projects`;
 var FEATURE_FOLDER = `${PROJECT_FOLDER}/Features`;
 var DEFAULT_KANBAN_BASE_FILE = `${VIEWS_FOLDER}/Kanban.base`;
+var DEFAULT_TIMELINE_BASE_FILE = `${VIEWS_FOLDER}/Timeline.base`;
 var DONE_STATUS = "done";
 var TASK_TAG = "task";
 var LEGACY_TASK_TAG = "tasks";
@@ -925,6 +926,13 @@ function openTaskMenu(host, event, task) {
   const menu = new import_obsidian2.Menu();
   menu.addItem((item) => item.setTitle("Edit task").setIcon("pencil").onClick(() => new EditTaskModal(host.plugin.app, host.plugin, task).open()));
   menu.addItem((item) => item.setTitle("Open note").setIcon("file-text").onClick(() => host.plugin.openTaskFile(task.file)));
+  if (host.plugin.settings && Array.isArray(host.plugin.settings.statuses)) {
+    menu.addSeparator();
+    for (const status of host.plugin.settings.statuses) {
+      const isCurrent = String(task.frontmatter.status || host.plugin.getDefaultStatus()).toLowerCase() === String(status).toLowerCase();
+      menu.addItem((item) => item.setTitle(`Status: ${status}`).setIcon(isCurrent ? "check" : "circle").onClick(() => host.plugin.updateTaskStatus(task.file, status)));
+    }
+  }
   menu.addSeparator();
   menu.addItem((item) => item.setTitle("Delete task").setIcon("trash-2").setWarning(true).onClick(() => host.plugin.deleteTask(task.file)));
   menu.showAtMouseEvent(event);
@@ -932,8 +940,9 @@ function openTaskMenu(host, event, task) {
 function renderTaskCard(host, cards, task, options = {}) {
   const priority = String(task.frontmatter.priority || "").trim().toLowerCase();
   const priorityClass = priority ? `priority-${priority}` : "";
+  const doneClass = isDoneStatus(task.frontmatter.status) ? "is-done" : "";
   const extraClass = options.extraClass || "";
-  const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass} ${extraClass}`.trim() });
+  const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass} ${doneClass} ${extraClass}`.trim() });
   if (options.accent) card.style.setProperty("--kanban-column-accent", options.accent);
   card.draggable = options.draggable !== false;
   if (card.draggable) {
@@ -987,7 +996,7 @@ function renderTaskCard(host, cards, task, options = {}) {
   const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
   const titleText = titleBlock.createDiv({ cls: "frontmatter-kanban-card-title-wrap" });
   const titleTags = titleText.createDiv({ cls: "frontmatter-kanban-card-tags" });
-  if (priority) {
+  if (priority && !options.hidePriorityBadge) {
     titleTags.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
   }
   if (options.badgeMode === "status") {
@@ -997,14 +1006,16 @@ function renderTaskCard(host, cards, task, options = {}) {
     titleTags.createSpan({ cls: "frontmatter-kanban-card-work-tag", text: workRange });
   }
   titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
-  const summary = getCardSummary(task);
+  const summary = options.hideSummary ? "" : getCardSummary(task);
   if (summary) {
     card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
   }
-  renderTodoProgress(host, card, task);
+  if (!options.hideTodos) {
+    renderTodoProgress(host, card, task);
+  }
   const project = formatReferenceLabel(task.frontmatter.project);
   const feature = formatReferenceLabel(task.frontmatter.feature);
-  if (project || feature || dueDateParts) {
+  if (!options.hideDetails && (project || feature || dueDateParts)) {
     card.createDiv({ cls: "frontmatter-kanban-card-divider" });
     const details = card.createDiv({ cls: "frontmatter-kanban-card-details" });
     if (project || feature) {
@@ -1034,7 +1045,7 @@ function renderTaskCard(host, cards, task, options = {}) {
       value.createSpan({ cls: "frontmatter-kanban-card-due-day-month", text: dueDateParts.dayMonth });
     }
   }
-  if (task.frontmatter.completed) {
+  if (task.frontmatter.completed && !options.hideCompletedFooter) {
     const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
     const completed = footer.createSpan({ cls: "frontmatter-kanban-card-date is-complete" });
     (0, import_obsidian2.setIcon)(completed.createSpan(), "check-circle-2");
@@ -1123,6 +1134,8 @@ var KanbanBasesView = class extends import_obsidian3.BasesView {
     this.containerEl.removeClass("frontmatter-timeline");
     this.containerEl.addClass("frontmatter-kanban");
     this.containerEl.addClass("frontmatter-kanban-bases");
+    const toolbar = this.containerEl.createDiv({ cls: "frontmatter-kanban-view-toolbar" });
+    new import_obsidian3.ButtonComponent(toolbar).setButtonText("New").setIcon("plus").setTooltip("Create task").setClass("frontmatter-kanban-view-new").onClick(() => this.openCreateTaskModal());
     const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
     board.style.setProperty("--kanban-column-width", `${this.getColumnWidth()}px`);
     const groups = this.getGroups();
@@ -1255,13 +1268,15 @@ function buildKanbanBasesViewFactory(plugin) {
 // src/bases/TimelineBasesView.ts
 var import_obsidian4 = require("obsidian");
 var DAY_MS = 24 * 60 * 60 * 1e3;
-var LABEL_COLUMN_WIDTH = 124;
 var PRIORITY_ACCENTS = {
   high: "#C98282",
   medium: "#C2A667",
   low: "#79A99F",
-  none: "#70899D"
+  none: "#70899D",
+  done: "#777E8F"
 };
+var WEEKDAY_LABELS2 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var MONTH_LABELS2 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function getEntryFile2(entry) {
   return entry && entry.file instanceof import_obsidian4.TFile ? entry.file : null;
 }
@@ -1276,6 +1291,9 @@ function formatDateOnly(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+function sameDate(left, right) {
+  return formatDateOnly(left) === formatDateOnly(right);
 }
 function addDays(date, days) {
   const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -1305,18 +1323,17 @@ function getIsoWeekNumber(date) {
   const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
   return Math.ceil(((target.getTime() - yearStart.getTime()) / DAY_MS + 1) / 7);
 }
-function formatTaiwanDate(date, includeYear = true) {
-  const prefix = includeYear ? `${date.getFullYear()}\u5E74` : "";
-  return `${prefix}${date.getMonth() + 1}\u6708${date.getDate()}\u65E5`;
-}
-function getWeekdayLabel(date) {
-  return ["\u9031\u65E5", "\u9031\u4E00", "\u9031\u4E8C", "\u9031\u4E09", "\u9031\u56DB", "\u9031\u4E94", "\u9031\u516D"][date.getDay()];
+function formatDisplayDate(date, includeYear = true) {
+  const month = MONTH_LABELS2[date.getMonth()];
+  const base = `${month} ${date.getDate()}`;
+  return includeYear ? `${base}, ${date.getFullYear()}` : base;
 }
 function getPriorityKey(task) {
   const priority = String(task.frontmatter.priority || "").trim().toLowerCase();
   return PRIORITIES.includes(priority) ? priority : "none";
 }
 function getPriorityAccent(task) {
+  if (isDoneStatus(task.frontmatter.status)) return PRIORITY_ACCENTS.done;
   return PRIORITY_ACCENTS[getPriorityKey(task)] || PRIORITY_ACCENTS.none;
 }
 var TimelineBasesView = class extends import_obsidian4.BasesView {
@@ -1330,6 +1347,9 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     this.suppressNextCardClick = false;
     this.periodMode = "week";
     this.anchorDate = /* @__PURE__ */ new Date();
+    this.collapsedSidebarGroups = /* @__PURE__ */ new Set();
+    this.isSidebarCollapsed = false;
+    this.sidebarStatusOrder = [];
   }
   onload() {
     this.render();
@@ -1349,19 +1369,30 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     const tasks = this.getTasks();
     const period = this.getPeriod();
     this.renderToolbar(period);
-    const shell = this.containerEl.createDiv({ cls: "frontmatter-timeline-shell" });
-    this.renderTimeline(shell, tasks, period);
+    const shell = this.containerEl.createDiv({
+      cls: `frontmatter-timeline-shell ${this.isSidebarCollapsed ? "is-sidebar-collapsed" : ""}`
+    });
+    if (this.periodMode === "month") {
+      this.renderMonthCalendar(shell, tasks, period);
+    } else if (this.periodMode === "day") {
+      this.renderDayList(shell, tasks, period.start);
+    } else {
+      this.renderWeekTimeline(shell, tasks, period);
+    }
     this.renderSidebar(shell, tasks);
   }
   getDayWidth() {
-    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("dayWidth")) : 170;
-    if (!Number.isFinite(configured)) return 170;
-    return Math.min(260, Math.max(120, configured));
+    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("dayWidth")) : 150;
+    if (!Number.isFinite(configured)) return 150;
+    return Math.min(240, Math.max(104, configured));
   }
   getLaneHeight() {
-    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("laneHeight")) : 178;
-    if (!Number.isFinite(configured)) return 178;
-    return Math.min(260, Math.max(132, configured));
+    const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("laneHeight")) : 118;
+    if (!Number.isFinite(configured)) return 118;
+    return Math.min(180, Math.max(84, configured));
+  }
+  getHideWeekends() {
+    return Boolean(this.config && typeof this.config.get === "function" && this.config.get("hideWeekends"));
   }
   getPeriod() {
     const anchor = new Date(this.anchorDate.getFullYear(), this.anchorDate.getMonth(), this.anchorDate.getDate());
@@ -1380,16 +1411,17 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     }
     return { start, end, days };
   }
+  getVisibleDays(days) {
+    if (!this.getHideWeekends() || this.periodMode === "day") return days;
+    return days.filter((date) => date.getDay() !== 0 && date.getDay() !== 6);
+  }
   renderToolbar(period) {
-    const toolbar = this.containerEl.createDiv({ cls: "frontmatter-timeline-toolbar" });
-    const title = toolbar.createDiv({ cls: "frontmatter-timeline-title" });
-    (0, import_obsidian4.setIcon)(title.createSpan({ cls: "frontmatter-timeline-title-icon" }), "calendar-days");
-    title.createSpan({ text: "Timeline" });
+    const toolbar = this.containerEl.createDiv({ cls: "frontmatter-timeline-toolbar is-compact" });
     const modeSwitch = toolbar.createDiv({ cls: "frontmatter-timeline-mode-switch" });
     [
-      ["day", "\u65E5"],
-      ["week", "\u9031"],
-      ["month", "\u6708"]
+      ["day", "Day"],
+      ["week", "Week"],
+      ["month", "Month"]
     ].forEach(([mode, label]) => {
       const button = modeSwitch.createEl("button", {
         cls: mode === this.periodMode ? "is-active" : "",
@@ -1410,10 +1442,19 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       this.shiftPeriod(1);
       this.render();
     });
-    new import_obsidian4.ButtonComponent(toolbar).setButtonText("\u4ECA\u5929").setClass("frontmatter-timeline-today").onClick(() => {
+    new import_obsidian4.ButtonComponent(toolbar).setButtonText("New").setIcon("plus").setClass("frontmatter-timeline-new").onClick(() => new CreateTaskModal(this.plugin.app, this.plugin).open());
+    new import_obsidian4.ButtonComponent(toolbar).setButtonText("Today").setClass("frontmatter-timeline-today").onClick(() => {
       this.anchorDate = /* @__PURE__ */ new Date();
       this.render();
     });
+    const weekendsButton = new import_obsidian4.ButtonComponent(toolbar).setButtonText(this.getHideWeekends() ? "Show weekends" : "Hide weekends").setTooltip("Toggle weekend columns").setClass("frontmatter-timeline-weekends-toggle").onClick(() => {
+      const nextValue = !this.getHideWeekends();
+      if (this.config && typeof this.config.set === "function") {
+        this.config.set("hideWeekends", nextValue);
+      }
+      this.render();
+    });
+    if (this.getHideWeekends()) weekendsButton.buttonEl.addClass("is-active");
   }
   shiftPeriod(direction) {
     if (this.periodMode === "day") {
@@ -1425,22 +1466,15 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     }
   }
   formatPeriodLabel(period) {
-    if (this.periodMode === "day") return formatTaiwanDate(period.start);
-    if (this.periodMode === "month") return `${period.start.getFullYear()}\u5E74${period.start.getMonth() + 1}\u6708`;
+    if (this.periodMode === "day") return formatDisplayDate(period.start);
+    if (this.periodMode === "month") return `${MONTH_LABELS2[period.start.getMonth()]} ${period.start.getFullYear()}`;
     const sameYear = period.start.getFullYear() === period.end.getFullYear();
-    const endLabel = formatTaiwanDate(period.end, !sameYear);
-    return `${formatTaiwanDate(period.start)} - ${endLabel}\uFF08\u7B2C${getIsoWeekNumber(period.start)}\u9031\uFF09`;
+    const endLabel = formatDisplayDate(period.end, !sameYear);
+    return `${formatDisplayDate(period.start)} - ${endLabel} (Week ${getIsoWeekNumber(period.start)})`;
   }
   getTasks() {
     const entries = this.getTaskFolderEntries(this.data && Array.isArray(this.data.data) ? this.data.data : []);
-    return entries.map((entry) => this.entryToTask(entry)).filter(Boolean).sort((left, right) => {
-      var _a, _b;
-      const startDiff = (((_a = parseDateOnly(left.frontmatter.work_start || left.frontmatter.work_end)) == null ? void 0 : _a.getTime()) || 0) - (((_b = parseDateOnly(right.frontmatter.work_start || right.frontmatter.work_end)) == null ? void 0 : _b.getTime()) || 0);
-      if (startDiff) return startDiff;
-      const priorityDiff = getPriorityWeight(right.frontmatter.priority) - getPriorityWeight(left.frontmatter.priority);
-      if (priorityDiff) return priorityDiff;
-      return getTaskTitle(left).localeCompare(getTaskTitle(right));
-    });
+    return entries.map((entry) => this.entryToTask(entry)).filter(Boolean);
   }
   getTaskFolderEntries(entries) {
     return entries.filter((entry) => {
@@ -1466,90 +1500,179 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     if (start && end && start > end) return { start: end, end: start };
     return { start: start || end, end: end || start };
   }
-  getVisibleScheduledTasks(tasks, period) {
-    return tasks.map((task) => ({ task, range: this.getTaskRange(task) })).filter((item) => item.range && item.range.start <= period.end && item.range.end >= period.start);
+  getScheduledTasks(tasks) {
+    return tasks.map((task) => ({ task, range: this.getTaskRange(task) })).filter((item) => item.range);
   }
-  renderTimeline(shell, tasks, period) {
-    const scheduled = this.getVisibleScheduledTasks(tasks, period);
+  getVisibleScheduledTasks(tasks, period) {
+    return this.getScheduledTasks(tasks).filter((item) => item.range.start <= period.end && item.range.end >= period.start);
+  }
+  getTasksForDate(tasks, date) {
+    return this.getScheduledTasks(tasks).filter((item) => item.range.start <= date && item.range.end >= date).map((item) => item.task);
+  }
+  renderWeekTimeline(shell, tasks, period) {
+    const visibleDays = this.getVisibleDays(period.days);
+    const scheduled = this.getVisibleScheduledTasks(tasks, period).filter((item) => visibleDays.some((date) => item.range.start <= date && item.range.end >= date));
     const rowCount = Math.max(scheduled.length, 4);
     const dayWidth = this.getDayWidth();
     const laneHeight = this.getLaneHeight();
     const panel = shell.createDiv({ cls: "frontmatter-timeline-main" });
-    const grid = panel.createDiv({ cls: "frontmatter-timeline-grid" });
+    const grid = panel.createDiv({ cls: "frontmatter-timeline-grid frontmatter-timeline-week-grid" });
+    const preview = grid.createDiv({ cls: "frontmatter-timeline-drop-preview" });
     grid.style.setProperty("--timeline-day-width", `${dayWidth}px`);
-    grid.style.setProperty("--timeline-label-width", `${LABEL_COLUMN_WIDTH}px`);
     grid.style.setProperty("--timeline-lane-height", `${laneHeight}px`);
-    grid.style.gridTemplateColumns = `var(--timeline-label-width) repeat(${period.days.length}, var(--timeline-day-width))`;
-    grid.style.gridTemplateRows = `78px repeat(${rowCount}, var(--timeline-lane-height))`;
+    grid.style.setProperty("--timeline-visible-days", String(visibleDays.length || 1));
+    grid.style.gridTemplateColumns = `repeat(${visibleDays.length}, minmax(var(--timeline-day-width), 1fr))`;
+    grid.style.gridTemplateRows = `64px repeat(${rowCount}, var(--timeline-lane-height))`;
     this.registerDomEvent(grid, "dragover", (event) => {
-      if (!this.getDropDate(event, grid, period)) return;
+      if (!this.getDropDate(event, grid, visibleDays)) return;
       event.preventDefault();
       grid.addClass("is-drag-over");
+      this.updateWeekDropPreview(preview, event, grid, visibleDays, tasks, rowCount);
     });
     this.registerDomEvent(grid, "dragleave", (event) => {
       if (event.relatedTarget && grid.contains(event.relatedTarget)) return;
       grid.removeClass("is-drag-over");
+      preview.removeClass("is-visible");
     });
     this.registerDomEvent(grid, "drop", async (event) => {
-      const dropDate = this.getDropDate(event, grid, period);
+      const dropDate = this.getDropDate(event, grid, visibleDays);
       if (!dropDate) return;
       event.preventDefault();
       grid.removeClass("is-drag-over");
+      preview.removeClass("is-visible");
       const path = event.dataTransfer.getData("text/plain");
       const file = this.plugin.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof import_obsidian4.TFile)) return;
       const task = tasks.find((item) => item.file.path === file.path);
       await this.scheduleTaskFromDrop(file, task, dropDate);
     });
-    const corner = grid.createDiv({ cls: "frontmatter-timeline-corner", text: "\u4EFB\u52D9" });
-    corner.style.gridColumn = "1";
-    corner.style.gridRow = "1";
-    period.days.forEach((date, index) => {
+    visibleDays.forEach((date, index) => {
       const header = grid.createDiv({ cls: "frontmatter-timeline-day-header" });
-      if (formatDateOnly(date) === formatDateOnly(/* @__PURE__ */ new Date())) header.addClass("is-today");
+      if (sameDate(date, /* @__PURE__ */ new Date())) header.addClass("is-today");
       if (date.getDay() === 0 || date.getDay() === 6) header.addClass("is-weekend");
-      header.style.gridColumn = String(index + 2);
+      header.style.gridColumn = String(index + 1);
       header.style.gridRow = "1";
       header.createDiv({ cls: "frontmatter-timeline-day-number", text: `${date.getMonth() + 1}/${date.getDate()}` });
-      header.createDiv({ cls: "frontmatter-timeline-weekday", text: getWeekdayLabel(date) });
+      header.createDiv({ cls: "frontmatter-timeline-weekday", text: WEEKDAY_LABELS2[date.getDay()] });
       const dropColumn = grid.createDiv({ cls: "frontmatter-timeline-drop-column" });
       if (date.getDay() === 0 || date.getDay() === 6) dropColumn.addClass("is-weekend");
-      dropColumn.style.gridColumn = String(index + 2);
+      dropColumn.style.gridColumn = String(index + 1);
       dropColumn.style.gridRow = `2 / span ${rowCount}`;
     });
-    for (let row = 0; row < rowCount; row += 1) {
-      const laneLabel = grid.createDiv({ cls: "frontmatter-timeline-lane-label" });
-      laneLabel.style.gridColumn = "1";
-      laneLabel.style.gridRow = String(row + 2);
-    }
     scheduled.forEach((item, index) => {
-      const clippedStart = item.range.start < period.start ? period.start : item.range.start;
-      const clippedEnd = item.range.end > period.end ? period.end : item.range.end;
-      const colStart = daysBetween(period.start, clippedStart) + 2;
-      const colEnd = daysBetween(period.start, clippedEnd) + 3;
+      const columns = this.getGridColumnsForRange(item.range, visibleDays);
+      if (!columns) return;
       const holder = grid.createDiv({ cls: "frontmatter-timeline-task" });
-      holder.style.gridColumn = `${colStart} / ${colEnd}`;
+      holder.style.gridColumn = `${columns.start} / ${columns.end}`;
       holder.style.gridRow = String(index + 2);
       holder.style.setProperty("--kanban-column-accent", getPriorityAccent(item.task));
-      renderTaskCard(this, holder, item.task, {
-        badgeMode: "status",
-        extraClass: "frontmatter-timeline-grid-card",
-        accent: getPriorityAccent(item.task),
-        onDragEnd: () => grid.removeClass("is-drag-over")
-      });
+      this.renderTimelineCard(holder, item.task, "frontmatter-timeline-grid-card");
+      this.renderResizeHandle(holder, item, "start", grid, visibleDays);
+      this.renderResizeHandle(holder, item, "end", grid, visibleDays);
     });
     if (!scheduled.length) {
-      const empty = grid.createDiv({ cls: "frontmatter-timeline-empty", text: "\u9019\u6BB5\u671F\u9593\u6C92\u6709\u5DF2\u6392\u7A0B\u7684\u4EFB\u52D9" });
-      empty.style.gridColumn = `2 / span ${period.days.length}`;
+      const empty = grid.createDiv({ cls: "frontmatter-timeline-empty", text: "No scheduled tasks in this period." });
+      empty.style.gridColumn = `1 / span ${Math.max(visibleDays.length, 1)}`;
       empty.style.gridRow = "2";
     }
   }
-  getDropDate(event, grid, period) {
+  updateWeekDropPreview(preview, event, grid, visibleDays, tasks, rowCount) {
+    const dropDate = this.getDropDate(event, grid, visibleDays);
+    if (!dropDate) {
+      preview.removeClass("is-visible");
+      return;
+    }
+    const path = event.dataTransfer ? event.dataTransfer.getData("text/plain") : "";
+    const task = tasks.find((item) => item.file.path === path);
+    const existingRange = task ? this.getTaskRange(task) : null;
+    const duration = existingRange ? Math.max(0, daysBetween(existingRange.start, existingRange.end)) : 0;
+    const range = { start: dropDate, end: addDays(dropDate, duration) };
+    const columns = this.getGridColumnsForRange(range, visibleDays);
+    if (!columns) {
+      preview.removeClass("is-visible");
+      return;
+    }
+    preview.style.gridColumn = `${columns.start} / ${columns.end}`;
+    preview.style.gridRow = `2 / span ${rowCount}`;
+    preview.addClass("is-visible");
+  }
+  getGridColumnsForRange(range, visibleDays) {
+    let startIndex = -1;
+    let endIndex = -1;
+    for (let index = 0; index < visibleDays.length; index += 1) {
+      const date = visibleDays[index];
+      if (date >= range.start && date <= range.end) {
+        if (startIndex === -1) startIndex = index;
+        endIndex = index;
+      }
+    }
+    if (startIndex === -1) return null;
+    return { start: startIndex + 1, end: endIndex + 2 };
+  }
+  renderTimelineCard(holder, task, extraClass) {
+    return renderTaskCard(this, holder, task, {
+      badgeMode: "status",
+      extraClass,
+      accent: getPriorityAccent(task),
+      hidePriorityBadge: true,
+      hideSummary: extraClass !== "frontmatter-timeline-day-card",
+      hideTodos: false,
+      hideCompletedFooter: true,
+      onDragEnd: () => {
+        var _a;
+        return (_a = this.containerEl.querySelector(".frontmatter-timeline-grid")) == null ? void 0 : _a.removeClass("is-drag-over");
+      }
+    });
+  }
+  renderResizeHandle(holder, item, edge, grid, visibleDays) {
+    const handle = holder.createSpan({ cls: `frontmatter-timeline-resize-handle is-${edge}` });
+    handle.setAttr("aria-label", edge === "start" ? "Resize start date" : "Resize end date");
+    this.registerDomEvent(handle, "pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.suppressNextCardClick = true;
+      const state = {
+        start: item.range.start,
+        end: item.range.end,
+        nextStart: item.range.start,
+        nextEnd: item.range.end
+      };
+      holder.addClass("is-resizing");
+      const onMove = (moveEvent) => {
+        const date = this.getDropDate(moveEvent, grid, visibleDays);
+        if (!date) return;
+        if (edge === "start") {
+          state.nextStart = date <= state.nextEnd ? date : state.nextEnd;
+        } else {
+          state.nextEnd = date >= state.nextStart ? date : state.nextStart;
+        }
+        const columns = this.getGridColumnsForRange({ start: state.nextStart, end: state.nextEnd }, visibleDays);
+        if (columns) holder.style.gridColumn = `${columns.start} / ${columns.end}`;
+      };
+      const onUp = async () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        holder.removeClass("is-resizing");
+        await this.plugin.updateTaskWorkRange(item.task.file, formatDateOnly(state.nextStart), formatDateOnly(state.nextEnd));
+        window.setTimeout(() => {
+          this.suppressNextCardClick = false;
+        }, 80);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+    });
+  }
+  getDropDate(event, grid, visibleDays) {
     const rect = grid.getBoundingClientRect();
-    const x = event.clientX - rect.left + grid.scrollLeft - LABEL_COLUMN_WIDTH;
+    const x = event.clientX - rect.left + grid.scrollLeft;
     if (x < 0) return null;
-    const index = Math.floor(x / this.getDayWidth());
-    return period.days[index] || null;
+    const columnWidth = this.getTimelineColumnWidth(grid, visibleDays);
+    const index = Math.floor(x / columnWidth);
+    return visibleDays[index] || null;
+  }
+  getTimelineColumnWidth(grid, visibleDays) {
+    if (!visibleDays.length) return this.getDayWidth();
+    return Math.max(this.getDayWidth(), Math.max(grid.scrollWidth, grid.clientWidth) / visibleDays.length);
   }
   async scheduleTaskFromDrop(file, task, startDate) {
     const existingRange = task ? this.getTaskRange(task) : null;
@@ -1557,35 +1680,353 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     const endDate = addDays(startDate, duration);
     await this.plugin.updateTaskWorkRange(file, formatDateOnly(startDate), formatDateOnly(endDate));
   }
-  renderSidebar(shell, tasks) {
-    const sidebar = shell.createDiv({ cls: "frontmatter-timeline-sidebar" });
-    const header = sidebar.createDiv({ cls: "frontmatter-timeline-sidebar-header" });
-    header.createDiv({ cls: "frontmatter-timeline-sidebar-title", text: "\u4EFB\u52D9\u6E05\u55AE" });
-    new import_obsidian4.ButtonComponent(header).setIcon("plus").setTooltip("New task").onClick(() => new CreateTaskModal(this.plugin.app, this.plugin).open());
-    new import_obsidian4.ButtonComponent(header).setIcon("more-horizontal").setTooltip("More");
-    const body = sidebar.createDiv({ cls: "frontmatter-timeline-sidebar-body" });
-    const groups = [
-      ["high", "HIGH \u512A\u5148\u5EA6"],
-      ["medium", "MEDIUM \u512A\u5148\u5EA6"],
-      ["low", "LOW \u512A\u5148\u5EA6"],
-      ["none", "\u672A\u5206\u7D1A"]
-    ];
-    for (const [priority, title] of groups) {
-      const groupTasks = tasks.filter((task) => getPriorityKey(task) === priority);
-      if (!groupTasks.length) continue;
-      const section = body.createDiv({ cls: `frontmatter-timeline-sidebar-section priority-${priority}` });
-      const sectionTitle = section.createDiv({ cls: "frontmatter-timeline-sidebar-section-title" });
-      sectionTitle.createSpan({ cls: "frontmatter-timeline-sidebar-priority-dot" });
-      sectionTitle.createSpan({ text: `${title} (${groupTasks.length})` });
-      const list = section.createDiv({ cls: "frontmatter-timeline-sidebar-list" });
-      groupTasks.forEach((task) => {
-        renderTaskCard(this, list, task, {
-          badgeMode: "status",
-          extraClass: "frontmatter-timeline-sidebar-card",
-          accent: getPriorityAccent(task)
+  renderMonthCalendar(shell, tasks, period) {
+    const panel = shell.createDiv({ cls: "frontmatter-timeline-main frontmatter-timeline-month-main" });
+    const calendar = panel.createDiv({ cls: "frontmatter-timeline-month" });
+    const hideWeekends = this.getHideWeekends();
+    const labels = hideWeekends ? ["Mon", "Tue", "Wed", "Thu", "Fri"] : WEEKDAY_LABELS2;
+    calendar.style.gridTemplateColumns = `repeat(${labels.length}, minmax(120px, 1fr))`;
+    labels.forEach((label, index) => {
+      const header = calendar.createDiv({ cls: "frontmatter-timeline-month-weekday", text: label });
+      header.style.gridColumn = String(index + 1);
+      header.style.gridRow = "1";
+    });
+    const weeks = this.getMonthWeeks(period.start, hideWeekends);
+    calendar.style.gridTemplateRows = `34px repeat(${weeks.length}, minmax(132px, 1fr))`;
+    this.registerDomEvent(calendar, "dragover", (event) => {
+      const date = this.getMonthDateFromPoint(event.clientX, event.clientY);
+      if (!date) return;
+      event.preventDefault();
+      this.markMonthDropTarget(event.clientX, event.clientY);
+    });
+    this.registerDomEvent(calendar, "dragleave", (event) => {
+      if (event.relatedTarget && calendar.contains(event.relatedTarget)) return;
+      this.clearMonthDropTargets();
+    });
+    this.registerDomEvent(calendar, "drop", async (event) => {
+      const date = this.getMonthDateFromPoint(event.clientX, event.clientY);
+      if (!date) return;
+      event.preventDefault();
+      this.clearMonthDropTargets();
+      const path = event.dataTransfer.getData("text/plain");
+      const file = this.plugin.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof import_obsidian4.TFile)) return;
+      const task = tasks.find((item) => item.file.path === file.path);
+      await this.scheduleTaskFromDrop(file, task, date);
+    });
+    weeks.forEach((week, weekIndex) => {
+      week.forEach((date, dayIndex) => {
+        const cell = calendar.createDiv({ cls: "frontmatter-timeline-month-day" });
+        cell.style.gridColumn = String(dayIndex + 1);
+        cell.style.gridRow = String(weekIndex + 2);
+        if (!date) {
+          cell.addClass("is-empty");
+          return;
+        }
+        if (date.getMonth() !== period.start.getMonth()) cell.addClass("is-outside");
+        if (sameDate(date, /* @__PURE__ */ new Date())) cell.addClass("is-today");
+        cell.dataset.date = formatDateOnly(date);
+        this.registerDomEvent(cell, "dragover", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          cell.addClass("is-drop-target");
+        });
+        this.registerDomEvent(cell, "dragleave", (event) => {
+          if (event.relatedTarget && cell.contains(event.relatedTarget)) return;
+          cell.removeClass("is-drop-target");
+        });
+        this.registerDomEvent(cell, "drop", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          cell.removeClass("is-drop-target");
+          const path = event.dataTransfer.getData("text/plain");
+          const file = this.plugin.app.vault.getAbstractFileByPath(path);
+          if (!(file instanceof import_obsidian4.TFile)) return;
+          const task = tasks.find((item) => item.file.path === file.path);
+          await this.scheduleTaskFromDrop(file, task, date);
+        });
+        cell.createDiv({ cls: "frontmatter-timeline-month-date", text: String(date.getDate()) });
+      });
+    });
+    this.renderMonthTaskBars(calendar, tasks, weeks);
+  }
+  renderMonthTaskBars(calendar, tasks, weeks) {
+    const scheduled = this.getScheduledTasks(tasks);
+    const lanesByWeek = /* @__PURE__ */ new Map();
+    scheduled.forEach((item) => {
+      weeks.forEach((week, weekIndex) => {
+        const segment = this.getMonthSegment(item.range, week);
+        if (!segment) return;
+        const lane = lanesByWeek.get(weekIndex) || 0;
+        lanesByWeek.set(weekIndex, lane + 1);
+        this.renderMonthTask(calendar, item.task, {
+          weekIndex,
+          lane,
+          colStart: segment.start + 1,
+          colEnd: segment.end + 2
         });
       });
+    });
+  }
+  getMonthSegment(range, week) {
+    let start = -1;
+    let end = -1;
+    for (let index = 0; index < week.length; index += 1) {
+      const date = week[index];
+      if (!date) continue;
+      if (range.start <= date && range.end >= date) {
+        if (start === -1) start = index;
+        end = index;
+      }
     }
+    if (start === -1) return null;
+    return { start, end };
+  }
+  getMonthWeeks(monthStart, hideWeekends) {
+    const monthEnd = endOfMonth(monthStart);
+    const weekStart = hideWeekends ? startOfWeek(monthStart) : addDays(monthStart, -monthStart.getDay());
+    const weekEndBase = hideWeekends ? startOfWeek(monthEnd) : addDays(monthEnd, 6 - monthEnd.getDay());
+    const weekEnd = hideWeekends ? addDays(weekEndBase, 4) : weekEndBase;
+    const weeks = [];
+    let row = [];
+    for (let date = weekStart; date <= weekEnd; date = addDays(date, 1)) {
+      if (hideWeekends && (date.getDay() === 0 || date.getDay() === 6)) continue;
+      row.push(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+      if (row.length === (hideWeekends ? 5 : 7)) {
+        weeks.push(row);
+        row = [];
+      }
+    }
+    if (row.length) weeks.push(row);
+    return weeks;
+  }
+  renderMonthTask(calendar, task, placement) {
+    const item = calendar.createDiv({ cls: `frontmatter-timeline-month-task ${isDoneStatus(task.frontmatter.status) ? "is-done" : ""}` });
+    item.style.setProperty("--kanban-column-accent", getPriorityAccent(task));
+    item.style.gridColumn = `${placement.colStart} / ${placement.colEnd}`;
+    item.style.gridRow = String(placement.weekIndex + 2);
+    item.style.marginTop = `${30 + placement.lane * 24}px`;
+    item.draggable = true;
+    this.registerDomEvent(item, "dragstart", (event) => {
+      if (!event.dataTransfer) return;
+      item.addClass("is-dragging");
+      event.dataTransfer.setData("text/plain", task.file.path);
+      event.dataTransfer.effectAllowed = "move";
+    });
+    this.registerDomEvent(item, "dragend", () => {
+      item.removeClass("is-dragging");
+      this.containerEl.querySelectorAll(".frontmatter-timeline-month-day.is-drop-target").forEach((element) => {
+        element.classList.remove("is-drop-target");
+      });
+    });
+    this.renderMonthResizeHandle(item, task, "start");
+    item.createSpan({ cls: "frontmatter-timeline-month-task-dot" });
+    item.createSpan({ cls: "frontmatter-timeline-month-task-title", text: getTaskTitle(task) });
+    const due = formatDateForInput(task.frontmatter.due);
+    if (due) item.createSpan({ cls: "frontmatter-timeline-month-task-due", text: due.slice(5) });
+    this.renderMonthResizeHandle(item, task, "end");
+    this.registerDomEvent(item, "click", (event) => {
+      if (this.suppressNextCardClick) return;
+      if (event.detail > 1) return;
+      if (this.cardClickTimer) window.clearTimeout(this.cardClickTimer);
+      this.cardClickTimer = window.setTimeout(() => {
+        this.cardClickTimer = null;
+        new EditTaskModal(this.plugin.app, this.plugin, task).open();
+      }, 300);
+    });
+    this.registerDomEvent(item, "contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.cardClickTimer) {
+        window.clearTimeout(this.cardClickTimer);
+        this.cardClickTimer = null;
+      }
+      openTaskMenu(this, event, task);
+    });
+  }
+  renderMonthResizeHandle(item, task, edge) {
+    const handle = item.createSpan({ cls: `frontmatter-timeline-month-resize-handle is-${edge}` });
+    handle.setAttr("aria-label", edge === "start" ? "Resize start date" : "Resize end date");
+    this.registerDomEvent(handle, "pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.suppressNextCardClick = true;
+      const range = this.getTaskRange(task) || { start: /* @__PURE__ */ new Date(), end: /* @__PURE__ */ new Date() };
+      const state = {
+        nextStart: range.start,
+        nextEnd: range.end
+      };
+      item.addClass("is-resizing");
+      const onMove = (moveEvent) => {
+        const date = this.getMonthDateFromPoint(moveEvent.clientX, moveEvent.clientY);
+        if (!date) return;
+        this.containerEl.querySelectorAll(".frontmatter-timeline-month-day.is-drop-target").forEach((element) => {
+          element.classList.remove("is-drop-target");
+        });
+        this.markMonthDropTarget(moveEvent.clientX, moveEvent.clientY);
+        if (edge === "start") state.nextStart = date <= state.nextEnd ? date : state.nextEnd;
+        else state.nextEnd = date >= state.nextStart ? date : state.nextStart;
+      };
+      const onUp = async () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        item.removeClass("is-resizing");
+        this.containerEl.querySelectorAll(".frontmatter-timeline-month-day.is-drop-target").forEach((element) => {
+          element.classList.remove("is-drop-target");
+        });
+        await this.plugin.updateTaskWorkRange(task.file, formatDateOnly(state.nextStart), formatDateOnly(state.nextEnd));
+        window.setTimeout(() => {
+          this.suppressNextCardClick = false;
+        }, 80);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+    });
+  }
+  getMonthCellFromPoint(clientX, clientY) {
+    const cells = Array.from(this.containerEl.querySelectorAll(".frontmatter-timeline-month-day[data-date]"));
+    return cells.find((cell) => {
+      const rect = cell.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    }) || null;
+  }
+  getMonthDateFromPoint(clientX, clientY) {
+    const cell = this.getMonthCellFromPoint(clientX, clientY);
+    return cell ? parseDateOnly(cell.dataset.date) : null;
+  }
+  markMonthDropTarget(clientX, clientY) {
+    this.clearMonthDropTargets();
+    const target = this.getMonthCellFromPoint(clientX, clientY);
+    if (target) target.classList.add("is-drop-target");
+  }
+  clearMonthDropTargets() {
+    this.containerEl.querySelectorAll(".frontmatter-timeline-month-day.is-drop-target").forEach((element) => {
+      element.classList.remove("is-drop-target");
+    });
+  }
+  renderDayList(shell, tasks, date) {
+    const panel = shell.createDiv({ cls: "frontmatter-timeline-main frontmatter-timeline-day-main" });
+    const list = panel.createDiv({ cls: "frontmatter-timeline-day-list" });
+    const dayTasks = this.getTasksForDate(tasks, date);
+    const statuses = [...this.plugin.settings.statuses];
+    const extras = dayTasks.map((task) => String(task.frontmatter.status || this.plugin.getDefaultStatus()).trim()).filter((status) => status && !statuses.some((item) => item.toLowerCase() === status.toLowerCase()));
+    const groups = [...statuses, ...extras];
+    groups.forEach((status) => {
+      const groupTasks = dayTasks.filter((task) => String(task.frontmatter.status || this.plugin.getDefaultStatus()).toLowerCase() === status.toLowerCase());
+      if (!groupTasks.length) return;
+      const section = list.createDiv({ cls: "frontmatter-timeline-day-section" });
+      const header = section.createDiv({ cls: "frontmatter-timeline-day-section-header" });
+      header.createSpan({ text: status });
+      header.createSpan({ cls: "frontmatter-timeline-day-count", text: String(groupTasks.length) });
+      const cards = section.createDiv({ cls: "frontmatter-timeline-day-cards" });
+      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task, ""));
+    });
+    if (!dayTasks.length) {
+      list.createDiv({ cls: "frontmatter-timeline-empty", text: "No tasks scheduled for this day." });
+    }
+  }
+  renderSidebar(shell, tasks) {
+    const sidebar = shell.createDiv({ cls: "frontmatter-timeline-sidebar" });
+    if (this.isSidebarCollapsed) sidebar.addClass("is-collapsed");
+    const header = sidebar.createDiv({ cls: "frontmatter-timeline-sidebar-header" });
+    if (!this.isSidebarCollapsed) header.createDiv({ cls: "frontmatter-timeline-sidebar-title", text: "Task List" });
+    new import_obsidian4.ButtonComponent(header).setIcon(this.isSidebarCollapsed ? "panel-left-open" : "panel-right-close").setTooltip(this.isSidebarCollapsed ? "Show task list" : "Hide task list").setClass("frontmatter-timeline-sidebar-toggle").onClick(() => {
+      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+      this.render();
+    });
+    if (this.isSidebarCollapsed) return;
+    const body = sidebar.createDiv({ cls: "frontmatter-timeline-sidebar-body" });
+    const groups = this.getStatusGroups(tasks);
+    for (const group of groups) {
+      const groupTasks = group.tasks;
+      if (!groupTasks.length) continue;
+      const section = body.createDiv({ cls: "frontmatter-timeline-sidebar-section is-status-group" });
+      section.style.setProperty("--timeline-section-accent", group.accent);
+      if (this.collapsedSidebarGroups.has(group.key)) section.addClass("is-collapsed");
+      const sectionTitle = section.createDiv({ cls: "frontmatter-timeline-sidebar-section-title" });
+      sectionTitle.setAttr("role", "button");
+      sectionTitle.setAttr("tabindex", "0");
+      sectionTitle.createSpan({ cls: "frontmatter-timeline-sidebar-collapse-icon", text: this.collapsedSidebarGroups.has(group.key) ? "+" : "-" });
+      sectionTitle.createSpan({ cls: "frontmatter-timeline-sidebar-priority-dot" });
+      sectionTitle.createSpan({ text: `${group.status} (${groupTasks.length})` });
+      if (!isDoneStatus(group.status)) {
+        const controls = sectionTitle.createSpan({ cls: "frontmatter-timeline-sidebar-group-controls" });
+        const upButton = controls.createEl("button", { text: "\u2191" });
+        upButton.setAttr("aria-label", `Move ${group.status} up`);
+        const downButton = controls.createEl("button", { text: "\u2193" });
+        downButton.setAttr("aria-label", `Move ${group.status} down`);
+        this.registerDomEvent(upButton, "click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.moveStatusGroup(group.key, -1);
+        });
+        this.registerDomEvent(downButton, "click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.moveStatusGroup(group.key, 1);
+        });
+      }
+      const toggleSection = () => {
+        if (this.collapsedSidebarGroups.has(group.key)) this.collapsedSidebarGroups.delete(group.key);
+        else this.collapsedSidebarGroups.add(group.key);
+        this.render();
+      };
+      this.registerDomEvent(sectionTitle, "click", toggleSection);
+      this.registerDomEvent(sectionTitle, "keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        toggleSection();
+      });
+      const list = section.createDiv({ cls: "frontmatter-timeline-sidebar-list" });
+      groupTasks.forEach((task) => {
+        this.renderFullTaskCard(list, task, "");
+      });
+    }
+  }
+  renderFullTaskCard(container, task, extraClass) {
+    return renderTaskCard(this, container, task, {
+      extraClass,
+      accent: getPriorityAccent(task),
+      hideCompletedFooter: true,
+      onDragEnd: () => {
+        var _a;
+        return (_a = this.containerEl.querySelector(".frontmatter-timeline-grid")) == null ? void 0 : _a.removeClass("is-drag-over");
+      }
+    });
+  }
+  getStatusGroups(tasks) {
+    const configured = [...this.plugin.settings.statuses];
+    const extras = tasks.map((task) => String(task.frontmatter.status || this.plugin.getDefaultStatus()).trim()).filter((status) => status && !configured.some((item) => statusEquals(item, status)));
+    const defaults = [...configured.filter((status) => !isDoneStatus(status)), ...extras.filter((status) => !isDoneStatus(status))];
+    const done = [...configured, ...extras].find((status) => isDoneStatus(status)) || "done";
+    const defaultKeys = defaults.map((status) => status.toLowerCase());
+    const orderedKeys = [
+      ...this.sidebarStatusOrder.filter((key) => defaultKeys.includes(key)),
+      ...defaultKeys.filter((key) => !this.sidebarStatusOrder.includes(key))
+    ];
+    const statusByKey = new Map(defaults.map((status) => [status.toLowerCase(), status]));
+    const statuses = orderedKeys.map((key) => statusByKey.get(key)).filter(Boolean);
+    statuses.push(done);
+    return statuses.map((status) => {
+      const groupTasks = tasks.filter((task) => statusEquals(task.frontmatter.status || this.plugin.getDefaultStatus(), status));
+      return {
+        key: status.toLowerCase(),
+        status,
+        tasks: groupTasks,
+        accent: groupTasks[0] ? getPriorityAccent(groupTasks[0]) : PRIORITY_ACCENTS.none
+      };
+    });
+  }
+  moveStatusGroup(key, direction) {
+    const groups = this.getStatusGroups(this.getTasks()).filter((group) => !isDoneStatus(group.status));
+    const keys = groups.map((group) => group.key);
+    const index = keys.indexOf(key);
+    const nextIndex = index + direction;
+    if (index === -1 || nextIndex < 0 || nextIndex >= keys.length) return;
+    const [moved] = keys.splice(index, 1);
+    keys.splice(nextIndex, 0, moved);
+    this.sidebarStatusOrder = keys;
+    this.render();
   }
 };
 function buildTimelineBasesViewFactory(plugin) {
@@ -1639,6 +2080,20 @@ views:
 ${generateTimelineBaseViewBlock()}
 `;
 }
+function generateDefaultTimelineBase(taskFolder = TASK_FOLDER) {
+  const folder = escapeBaseString(taskFolder || TASK_FOLDER);
+  return `filters:
+  and:
+    - note.tags.contains("${TASK_TAG}")
+    - file.path.startsWith("${folder}/")
+formulas:
+  priorityWeight: ${formatPriorityWeightFormula()}
+  isOverdue: note.due && date(note.due) < today() && note.status != "done"
+  daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
+views:
+${generateTimelineBaseViewBlock()}
+`;
+}
 function generateTimelineBaseViewBlock() {
   return `  - type: ${BASES_TIMELINE_VIEW_TYPE}
     name: Timeline
@@ -1661,8 +2116,9 @@ function generateTimelineBaseViewBlock() {
       - property: note.due
         direction: ASC
     options:
-      dayWidth: 170
-      laneHeight: 178
+      dayWidth: 150
+      laneHeight: 118
+      hideWeekends: false
 `;
 }
 
@@ -1884,6 +2340,12 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
       callback: () => this.activateView()
     });
     this.addCommand({
+      id: "open-taskmanagement-timeline",
+      name: "Open Timeline",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "y" }],
+      callback: () => this.activateTimelineView()
+    });
+    this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
       hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
@@ -1903,6 +2365,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1e3));
     await this.ensureStorageFolders();
     await this.ensureKanbanBaseFile();
+    await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
     this.syncDerivedFields();
     this.checkNotifications();
@@ -1962,6 +2425,12 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     await leaf.openFile(file);
     this.app.workspace.revealLeaf(leaf);
   }
+  async activateTimelineView() {
+    const file = await this.ensureTimelineBaseFile();
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file);
+    this.app.workspace.revealLeaf(leaf);
+  }
   async openTaskFile(file) {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file, { active: true });
@@ -2006,10 +2475,16 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
           type: "slider",
           key: "laneHeight",
           displayName: "Lane height",
-          default: 178,
-          min: 132,
-          max: 260,
+          default: 118,
+          min: 84,
+          max: 180,
           step: 8
+        },
+        {
+          type: "toggle",
+          key: "hideWeekends",
+          displayName: "Hide weekends",
+          default: false
         }
       ]
     });
@@ -2019,6 +2494,9 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
   }
   getKanbanBasePath() {
     return DEFAULT_KANBAN_BASE_FILE;
+  }
+  getTimelineBasePath() {
+    return DEFAULT_TIMELINE_BASE_FILE;
   }
   async ensureKanbanBaseFile() {
     const path = this.getKanbanBasePath();
@@ -2030,6 +2508,14 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
     return this.createMarkdownFile(path, generateDefaultKanbanBase(this.getTaskFolder()));
+  }
+  async ensureTimelineBaseFile() {
+    const path = this.getTimelineBasePath();
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof import_obsidian6.TFile) return existing;
+    const folder = path.split("/").slice(0, -1).join("/");
+    await this.ensureFolder(folder);
+    return this.createMarkdownFile(path, generateDefaultTimelineBase(this.getTaskFolder()));
   }
   async ensureStorageFolders() {
     await this.ensureFolder(ROOT_FOLDER);
@@ -2078,6 +2564,8 @@ ${generateTimelineBaseViewBlock()}`;
 views:
 ${generateTimelineBaseViewBlock()}`;
       }
+    } else if (!nextContents.includes("hideWeekends:")) {
+      nextContents = nextContents.replace(/(\n\s+laneHeight:\s+\d+)/, "$1\n      hideWeekends: false");
     }
     if (nextContents === contents) return;
     await this.app.vault.modify(file, nextContents);
