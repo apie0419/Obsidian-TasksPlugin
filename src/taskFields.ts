@@ -37,8 +37,8 @@ export function getDueClass(task) {
   const diffMs = due.getTime() - Date.now();
   const diffDays = diffMs / (24 * 60 * 60 * 1000);
   if (diffDays <= 3) return "is-due-red";
-  if (diffDays <= 7) return "is-due-yellow";
-  return "";
+  if (diffDays <= 10) return "is-due-yellow";
+  return "is-due-safe";
 }
 
 export function getFieldValue(task, fieldId) {

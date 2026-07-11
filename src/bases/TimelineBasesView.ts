@@ -909,7 +909,6 @@ export class TimelineBasesView extends BasesView {
       accent: getPriorityAccent(task),
       compactDueInTitle: true,
       hidePriorityBadge: false,
-      hideWorkBadge: true,
       hideDetails: true,
       hideSummary: true,
       hideTodos: true,

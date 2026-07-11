@@ -10,6 +10,7 @@
   --fk-feature: #79A99F;
   --fk-date: #A895B7;
   --fk-due-date: #C1A15D;
+  --fk-due-safe: #82A79D;
   --fk-medium: #C2A667;
   --fk-low: #79A99F;
   --fk-high: #C98282;
@@ -509,6 +510,7 @@
 .frontmatter-kanban-card-tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 5px;
   max-width: 100%;
 }
@@ -524,7 +526,7 @@
   background: color-mix(in srgb, var(--fk-surface) 84%, transparent);
   font-size: 12px;
   font-weight: 800;
-  line-height: 1.35;
+  line-height: 1.2;
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
@@ -603,6 +605,12 @@
   background: color-mix(in srgb, var(--fk-due-date) 13%, var(--fk-surface));
 }
 
+.frontmatter-kanban-card-compact-due.is-due-safe {
+  border-color: color-mix(in srgb, var(--fk-due-safe) 52%, var(--fk-border));
+  color: var(--fk-due-safe);
+  background: color-mix(in srgb, var(--fk-due-safe) 10%, var(--fk-surface));
+}
+
 .frontmatter-kanban-card-compact-due.is-due-red {
   border-color: color-mix(in srgb, var(--fk-high) 65%, var(--fk-border));
   color: var(--fk-high);
@@ -645,6 +653,11 @@
 .frontmatter-kanban-card-schedule-item.is-due.is-due-yellow {
   border-color: color-mix(in srgb, var(--fk-due-date) 58%, var(--fk-border));
   background: color-mix(in srgb, var(--fk-due-date) 13%, var(--fk-surface));
+}
+
+.frontmatter-kanban-card-schedule-item.is-due.is-due-safe {
+  border-color: color-mix(in srgb, var(--fk-due-safe) 52%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-due-safe) 10%, var(--fk-surface));
 }
 
 .frontmatter-kanban-card-schedule-item.is-due.is-due-red {
@@ -810,6 +823,17 @@
 .frontmatter-kanban-card-stat.is-due.is-due-yellow .frontmatter-kanban-card-stat-label {
   color: var(--fk-due-date);
   border-color: color-mix(in srgb, var(--fk-due-date) 48%, var(--fk-border));
+}
+
+.frontmatter-kanban-card-stat.is-due.is-due-safe {
+  border-color: color-mix(in srgb, var(--fk-due-safe) 52%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-due-safe) 10%, var(--fk-surface));
+}
+
+.frontmatter-kanban-card-stat.is-due.is-due-safe .frontmatter-kanban-card-stat-icon,
+.frontmatter-kanban-card-stat.is-due.is-due-safe .frontmatter-kanban-card-stat-label {
+  color: var(--fk-due-safe);
+  border-color: color-mix(in srgb, var(--fk-due-safe) 48%, var(--fk-border));
 }
 
 .frontmatter-kanban-card-stat.is-due.is-due-red {
@@ -1681,7 +1705,7 @@
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-status-tag {
   padding: 1px 6px;
   font-size: 10px;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .frontmatter-timeline-grid-card .frontmatter-kanban-card-divider,
@@ -2158,6 +2182,17 @@
   background: color-mix(in srgb, var(--fk-due-date) 13%, var(--fk-surface));
 }
 
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due.is-due-safe {
+  border-color: color-mix(in srgb, var(--fk-due-safe) 52%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-due-safe) 10%, var(--fk-surface));
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due.is-due-safe .frontmatter-kanban-card-stat-icon,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due.is-due-safe .frontmatter-kanban-card-stat-label {
+  color: var(--fk-due-safe);
+  border-color: color-mix(in srgb, var(--fk-due-safe) 48%, var(--fk-border));
+}
+
 .frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due.is-due-red {
   border-color: color-mix(in srgb, var(--fk-high) 65%, var(--fk-border));
   background: color-mix(in srgb, var(--fk-high) 15%, var(--fk-surface));
@@ -2537,7 +2572,7 @@
 .frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-status-tag {
   padding: 1px 6px;
   font-size: 10px;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-title-line {

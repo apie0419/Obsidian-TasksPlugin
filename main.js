@@ -178,8 +178,8 @@ function getDueClass(task) {
   const diffMs = due.getTime() - Date.now();
   const diffDays = diffMs / (24 * 60 * 60 * 1e3);
   if (diffDays <= 3) return "is-due-red";
-  if (diffDays <= 7) return "is-due-yellow";
-  return "";
+  if (diffDays <= 10) return "is-due-yellow";
+  return "is-due-safe";
 }
 function getBuiltInFields() {
   return [
@@ -2086,7 +2086,6 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       accent: getPriorityAccent(task),
       compactDueInTitle: true,
       hidePriorityBadge: false,
-      hideWorkBadge: true,
       hideDetails: true,
       hideSummary: true,
       hideTodos: true,
