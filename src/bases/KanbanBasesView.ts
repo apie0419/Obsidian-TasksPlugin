@@ -1,4 +1,4 @@
-import { BasesView, ButtonComponent, TFile } from "obsidian";
+import { BasesView, TFile, setIcon } from "obsidian";
 import type { BasesViewFactory } from "obsidian";
 import { BASES_KANBAN_VIEW_TYPE } from "../constants";
 import { CreateTaskModal } from "../modals/TaskModals";
@@ -51,9 +51,13 @@ export class KanbanBasesView extends BasesView {
     this.plugin = plugin;
     this.cardClickTimer = null;
     this.suppressNextCardClick = false;
+    this.createFileForView = async (baseFileName, frontmatterProcessor) => {
+      this.openCreateTaskModal(this.getCreateTaskInitialValues(baseFileName, frontmatterProcessor));
+    };
   }
 
   onload() {
+    this.installBasesToolbarNewHandler();
     this.render();
   }
 
@@ -61,12 +65,42 @@ export class KanbanBasesView extends BasesView {
     this.render();
   }
 
-  async createFileForView() {
-    this.openCreateTaskModal();
-  }
-
   openCreateTaskModal(initialValues = {}) {
     new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
+  }
+
+  getCreateTaskInitialValues(baseFileName = "", frontmatterProcessor) {
+    const initialValues = {};
+    const title = String(baseFileName || "").trim();
+    if (title) initialValues.title = title;
+    if (typeof frontmatterProcessor === "function") {
+      const frontmatter = {};
+      frontmatterProcessor(frontmatter);
+      Object.assign(initialValues, frontmatter);
+    }
+    return initialValues;
+  }
+
+  installBasesToolbarNewHandler() {
+    this.registerDomEvent(document, "click", (event) => {
+      if (!this.shouldHandleBasesNewClick(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.openCreateTaskModal();
+    }, { capture: true });
+  }
+
+  shouldHandleBasesNewClick(event) {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const button = target ? target.closest("button, .clickable-icon, [role='button']") : null;
+    if (!button || this.containerEl.contains(button)) return false;
+
+    const label = `${button.getAttribute("aria-label") || ""} ${button.textContent || ""}`.trim().toLowerCase();
+    if (!/(^|\s)new($|\s)/.test(label)) return false;
+
+    const leaf = this.containerEl.closest(".workspace-leaf-content, .workspace-leaf");
+    return !leaf || leaf.contains(button);
   }
 
   render() {
@@ -172,11 +206,12 @@ export class KanbanBasesView extends BasesView {
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
     title.createSpan({ text: status });
     title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(entries.length) });
-    new ButtonComponent(header)
-      .setIcon("plus")
-      .setTooltip(`New task in ${status}`)
-      .setClass("frontmatter-kanban-column-new")
-      .onClick(() => this.openCreateTaskModal({ status }));
+    const newTaskButton = header.createEl("button", { cls: "frontmatter-kanban-column-new" });
+    newTaskButton.setAttr("aria-label", `New task in ${status}`);
+    newTaskButton.setAttr("type", "button");
+    setIcon(newTaskButton.createSpan({ cls: "frontmatter-kanban-column-new-icon" }), "plus");
+    newTaskButton.createSpan({ text: "New Task" });
+    this.registerDomEvent(newTaskButton, "click", () => this.openCreateTaskModal({ status }));
 
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
     this.registerDomEvent(cards, "dragover", (event) => {

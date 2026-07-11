@@ -1002,10 +1002,18 @@ function renderTaskCard(host, cards, task, options = {}) {
   if (options.badgeMode === "status") {
     const status = String(task.frontmatter.status || host.plugin.getDefaultStatus()).trim();
     if (status) titleTags.createSpan({ cls: "frontmatter-kanban-card-status-tag", text: status });
-  } else if (workRange) {
+  } else if (workRange && !options.hideWorkBadge) {
     titleTags.createSpan({ cls: "frontmatter-kanban-card-work-tag", text: workRange });
   }
-  titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+  if (options.compactDueInTitle && dueDateParts) {
+    const titleLine = titleText.createDiv({ cls: "frontmatter-kanban-card-title-line" });
+    titleLine.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+    const compactDue = titleLine.createSpan({ cls: `frontmatter-kanban-card-compact-due ${getDueClass(task)}` });
+    (0, import_obsidian2.setIcon)(compactDue.createSpan({ cls: "frontmatter-kanban-card-compact-due-icon" }), "calendar");
+    compactDue.createSpan({ text: dueDateParts.dayMonth });
+  } else {
+    titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
+  }
   const summary = options.hideSummary ? "" : getCardSummary(task);
   if (summary) {
     card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
@@ -1015,34 +1023,37 @@ function renderTaskCard(host, cards, task, options = {}) {
   }
   const project = formatReferenceLabel(task.frontmatter.project);
   const feature = formatReferenceLabel(task.frontmatter.feature);
-  if (!options.hideDetails && (project || feature || dueDateParts)) {
+  const visibleProject = options.hideProjectDetail ? "" : project;
+  const visibleFeature = options.hideFeatureDetail ? "" : feature;
+  const visibleDueDateParts = options.hideDueDetail ? null : dueDateParts;
+  if (!options.hideDetails && (visibleProject || visibleFeature || visibleDueDateParts)) {
     card.createDiv({ cls: "frontmatter-kanban-card-divider" });
     const details = card.createDiv({ cls: "frontmatter-kanban-card-details" });
-    if (project || feature) {
+    if (visibleProject || visibleFeature) {
       const stats = details.createDiv({ cls: "frontmatter-kanban-card-stats" });
-      if (project) {
+      if (visibleProject) {
         const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
         (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
         const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
         body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: visibleProject });
       }
-      if (feature) {
+      if (visibleFeature) {
         const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
         (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
         const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
         body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
+        body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: visibleFeature });
       }
     }
-    if (dueDateParts) {
+    if (visibleDueDateParts) {
       const item = details.createDiv({ cls: `frontmatter-kanban-card-stat is-due ${getDueClass(task)}` });
       (0, import_obsidian2.setIcon)(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "calendar");
       const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
       body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Due date" });
       const value = body.createSpan({ cls: "frontmatter-kanban-card-stat-value is-due-date" });
-      value.createSpan({ cls: "frontmatter-kanban-card-due-year", text: dueDateParts.year });
-      value.createSpan({ cls: "frontmatter-kanban-card-due-day-month", text: dueDateParts.dayMonth });
+      value.createSpan({ cls: "frontmatter-kanban-card-due-year", text: visibleDueDateParts.year });
+      value.createSpan({ cls: "frontmatter-kanban-card-due-day-month", text: visibleDueDateParts.dayMonth });
     }
   }
   if (task.frontmatter.completed && !options.hideCompletedFooter) {
@@ -1116,18 +1127,48 @@ var KanbanBasesView = class extends import_obsidian3.BasesView {
     this.plugin = plugin;
     this.cardClickTimer = null;
     this.suppressNextCardClick = false;
+    this.createFileForView = async (baseFileName, frontmatterProcessor) => {
+      this.openCreateTaskModal(this.getCreateTaskInitialValues(baseFileName, frontmatterProcessor));
+    };
   }
   onload() {
+    this.installBasesToolbarNewHandler();
     this.render();
   }
   onDataUpdated() {
     this.render();
   }
-  async createFileForView() {
-    this.openCreateTaskModal();
-  }
   openCreateTaskModal(initialValues = {}) {
     new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
+  }
+  getCreateTaskInitialValues(baseFileName = "", frontmatterProcessor) {
+    const initialValues = {};
+    const title = String(baseFileName || "").trim();
+    if (title) initialValues.title = title;
+    if (typeof frontmatterProcessor === "function") {
+      const frontmatter = {};
+      frontmatterProcessor(frontmatter);
+      Object.assign(initialValues, frontmatter);
+    }
+    return initialValues;
+  }
+  installBasesToolbarNewHandler() {
+    this.registerDomEvent(document, "click", (event) => {
+      if (!this.shouldHandleBasesNewClick(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.openCreateTaskModal();
+    }, { capture: true });
+  }
+  shouldHandleBasesNewClick(event) {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const button = target ? target.closest("button, .clickable-icon, [role='button']") : null;
+    if (!button || this.containerEl.contains(button)) return false;
+    const label = `${button.getAttribute("aria-label") || ""} ${button.textContent || ""}`.trim().toLowerCase();
+    if (!/(^|\s)new($|\s)/.test(label)) return false;
+    const leaf = this.containerEl.closest(".workspace-leaf-content, .workspace-leaf");
+    return !leaf || leaf.contains(button);
   }
   render() {
     this.containerEl.empty();
@@ -1214,7 +1255,12 @@ var KanbanBasesView = class extends import_obsidian3.BasesView {
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });
     title.createSpan({ text: status });
     title.createSpan({ cls: "frontmatter-kanban-column-count", text: String(entries.length) });
-    new import_obsidian3.ButtonComponent(header).setIcon("plus").setTooltip(`New task in ${status}`).setClass("frontmatter-kanban-column-new").onClick(() => this.openCreateTaskModal({ status }));
+    const newTaskButton = header.createEl("button", { cls: "frontmatter-kanban-column-new" });
+    newTaskButton.setAttr("aria-label", `New task in ${status}`);
+    newTaskButton.setAttr("type", "button");
+    (0, import_obsidian3.setIcon)(newTaskButton.createSpan({ cls: "frontmatter-kanban-column-new-icon" }), "plus");
+    newTaskButton.createSpan({ text: "New Task" });
+    this.registerDomEvent(newTaskButton, "click", () => this.openCreateTaskModal({ status }));
     const cards = column.createDiv({ cls: "frontmatter-kanban-cards" });
     this.registerDomEvent(cards, "dragover", (event) => {
       event.preventDefault();
@@ -1348,15 +1394,49 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     this.collapsedSidebarGroups = /* @__PURE__ */ new Set();
     this.isSidebarCollapsed = false;
     this.sidebarStatusOrder = [];
+    this.showSidebarDetails = true;
+    this.createFileForView = async (baseFileName, frontmatterProcessor) => {
+      this.openCreateTaskModal(this.getCreateTaskInitialValues(baseFileName, frontmatterProcessor));
+    };
   }
   onload() {
+    this.installBasesToolbarNewHandler();
     this.render();
   }
   onDataUpdated() {
     this.render();
   }
-  async createFileForView() {
-    new CreateTaskModal(this.plugin.app, this.plugin).open();
+  openCreateTaskModal(initialValues = {}) {
+    new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
+  }
+  getCreateTaskInitialValues(baseFileName = "", frontmatterProcessor) {
+    const initialValues = {};
+    const title = String(baseFileName || "").trim();
+    if (title) initialValues.title = title;
+    if (typeof frontmatterProcessor === "function") {
+      const frontmatter = {};
+      frontmatterProcessor(frontmatter);
+      Object.assign(initialValues, frontmatter);
+    }
+    return initialValues;
+  }
+  installBasesToolbarNewHandler() {
+    this.registerDomEvent(document, "click", (event) => {
+      if (!this.shouldHandleBasesNewClick(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.openCreateTaskModal();
+    }, { capture: true });
+  }
+  shouldHandleBasesNewClick(event) {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const button = target ? target.closest("button, .clickable-icon, [role='button']") : null;
+    if (!button || this.containerEl.contains(button)) return false;
+    const label = `${button.getAttribute("aria-label") || ""} ${button.textContent || ""}`.trim().toLowerCase();
+    if (!/(^|\s)new($|\s)/.test(label)) return false;
+    const leaf = this.containerEl.closest(".workspace-leaf-content, .workspace-leaf");
+    return !leaf || leaf.contains(button);
   }
   render() {
     this.containerEl.empty();
@@ -1452,6 +1532,12 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       this.render();
     });
     if (this.getHideWeekends()) weekendsButton.buttonEl.addClass("is-active");
+    const newTaskButton = toolbar.createEl("button", { cls: "frontmatter-timeline-new" });
+    newTaskButton.setAttr("aria-label", "Create task");
+    newTaskButton.setAttr("type", "button");
+    (0, import_obsidian4.setIcon)(newTaskButton.createSpan({ cls: "frontmatter-timeline-new-icon" }), "plus");
+    newTaskButton.createSpan({ text: "New Task" });
+    this.registerDomEvent(newTaskButton, "click", () => this.openCreateTaskModal());
   }
   shiftPeriod(direction) {
     if (this.periodMode === "day") {
@@ -1519,7 +1605,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     grid.style.setProperty("--timeline-lane-height", `${laneHeight}px`);
     grid.style.setProperty("--timeline-visible-days", String(visibleDays.length || 1));
     grid.style.gridTemplateColumns = `repeat(${visibleDays.length}, minmax(var(--timeline-day-width), 1fr))`;
-    grid.style.gridTemplateRows = `64px repeat(${rowCount}, var(--timeline-lane-height))`;
+    grid.style.gridTemplateRows = `64px repeat(${rowCount}, var(--timeline-lane-height)) minmax(0, 1fr)`;
     this.registerDomEvent(grid, "dragover", (event) => {
       if (!this.getDropDate(event, grid, visibleDays)) return;
       event.preventDefault();
@@ -1554,7 +1640,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       const dropColumn = grid.createDiv({ cls: "frontmatter-timeline-drop-column" });
       if (date.getDay() === 0 || date.getDay() === 6) dropColumn.addClass("is-weekend");
       dropColumn.style.gridColumn = String(index + 1);
-      dropColumn.style.gridRow = `2 / span ${rowCount}`;
+      dropColumn.style.gridRow = "2 / -1";
     });
     scheduled.forEach((item, index) => {
       const columns = this.getGridColumnsForRange(item.range, visibleDays);
@@ -1611,7 +1697,9 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       badgeMode: "status",
       extraClass,
       accent: getPriorityAccent(task),
+      compactDueInTitle: extraClass === "frontmatter-timeline-grid-card",
       hidePriorityBadge: true,
+      hideDueDetail: extraClass === "frontmatter-timeline-grid-card",
       hideSummary: extraClass !== "frontmatter-timeline-day-card",
       hideTodos: false,
       hideCompletedFooter: true,
@@ -1916,7 +2004,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       header.createSpan({ text: status });
       header.createSpan({ cls: "frontmatter-timeline-day-count", text: String(groupTasks.length) });
       const cards = section.createDiv({ cls: "frontmatter-timeline-day-cards" });
-      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task));
+      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task, "frontmatter-timeline-day-card"));
     });
     if (!dayTasks.length) {
       list.createDiv({ cls: "frontmatter-timeline-empty", text: "No tasks scheduled for this day." });
@@ -1926,7 +2014,16 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     const sidebar = shell.createDiv({ cls: "frontmatter-timeline-sidebar" });
     if (this.isSidebarCollapsed) sidebar.addClass("is-collapsed");
     const header = sidebar.createDiv({ cls: "frontmatter-timeline-sidebar-header" });
-    if (!this.isSidebarCollapsed) header.createDiv({ cls: "frontmatter-timeline-sidebar-title", text: "Task List" });
+    if (!this.isSidebarCollapsed) {
+      header.createDiv({ cls: "frontmatter-timeline-sidebar-title", text: "Task List" });
+      const detailsButton = new import_obsidian4.ButtonComponent(header).setButtonText("Show details").setTooltip("Toggle detailed task cards").setClass("frontmatter-timeline-sidebar-details-toggle").onClick(() => {
+        this.showSidebarDetails = !this.showSidebarDetails;
+        this.render();
+      });
+      if (this.showSidebarDetails) {
+        detailsButton.buttonEl.addClass("is-active");
+      }
+    }
     new import_obsidian4.ButtonComponent(header).setIcon(this.isSidebarCollapsed ? "panel-left-open" : "panel-right-close").setTooltip(this.isSidebarCollapsed ? "Show task list" : "Hide task list").setClass("frontmatter-timeline-sidebar-toggle").onClick(() => {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
       this.render();
@@ -1976,9 +2073,29 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       });
       const list = section.createDiv({ cls: "frontmatter-timeline-sidebar-list" });
       groupTasks.forEach((task) => {
-        this.renderFullTaskCard(list, task);
+        this.renderSidebarTaskCard(list, task);
       });
     }
+  }
+  renderSidebarTaskCard(container, task) {
+    if (this.showSidebarDetails) {
+      return this.renderFullTaskCard(container, task, "frontmatter-timeline-sidebar-card");
+    }
+    return renderTaskCard(this, container, task, {
+      extraClass: "frontmatter-timeline-sidebar-card is-compact",
+      accent: getPriorityAccent(task),
+      compactDueInTitle: true,
+      hidePriorityBadge: false,
+      hideWorkBadge: true,
+      hideDetails: true,
+      hideSummary: true,
+      hideTodos: true,
+      hideCompletedFooter: true,
+      onDragEnd: () => {
+        var _a;
+        return (_a = this.containerEl.querySelector(".frontmatter-timeline-grid")) == null ? void 0 : _a.removeClass("is-drag-over");
+      }
+    });
   }
   renderFullTaskCard(container, task, extraClass = "") {
     return renderTaskCard(this, container, task, {

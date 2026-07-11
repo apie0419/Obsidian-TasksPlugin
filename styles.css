@@ -318,17 +318,32 @@
 }
 
 .frontmatter-kanban-column-header .frontmatter-kanban-column-new {
-  width: 30px;
+  min-width: 92px;
   height: 30px;
-  padding: 0;
-  color: var(--fk-text-primary);
-  background: color-mix(in srgb, var(--fk-border) 62%, transparent);
-  border-color: color-mix(in srgb, var(--fk-border) 80%, var(--kanban-column-accent));
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--fk-text-primary) 92%, #C4D0C2);
+  background: color-mix(in srgb, #8A9A8B 28%, var(--fk-surface));
+  border-color: color-mix(in srgb, #A9B5A4 48%, var(--fk-border));
   border-radius: 6px;
+  box-shadow: none;
+  font-size: var(--font-ui-small);
+  font-weight: 750;
+}
+
+.frontmatter-kanban-column-new-icon,
+.frontmatter-kanban-column-new-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .frontmatter-kanban-column-header .frontmatter-kanban-column-new:hover {
-  background: color-mix(in srgb, var(--kanban-column-accent) 18%, var(--fk-border));
+  background: color-mix(in srgb, #A9B5A4 34%, var(--fk-surface));
+  border-color: color-mix(in srgb, #B9C5B5 62%, var(--fk-border));
 }
 
 .frontmatter-kanban-column-title {
@@ -558,6 +573,48 @@
   overflow-wrap: anywhere;
 }
 
+.frontmatter-kanban-card-title-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.frontmatter-kanban-card-compact-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 96px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--fk-due-date) 42%, var(--fk-border));
+  border-radius: 7px;
+  color: var(--fk-due-date);
+  background: color-mix(in srgb, var(--fk-due-date) 8%, var(--fk-surface));
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.frontmatter-kanban-card-compact-due.is-due-yellow {
+  border-color: color-mix(in srgb, var(--fk-due-date) 58%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-due-date) 13%, var(--fk-surface));
+}
+
+.frontmatter-kanban-card-compact-due.is-due-red {
+  border-color: color-mix(in srgb, var(--fk-high) 65%, var(--fk-border));
+  color: var(--fk-high);
+  background: color-mix(in srgb, var(--fk-high) 15%, var(--fk-surface));
+}
+
+.frontmatter-kanban-card-compact-due-icon,
+.frontmatter-kanban-card-compact-due-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
 .frontmatter-kanban-card-schedule {
   display: grid;
   gap: 6px;
@@ -685,7 +742,7 @@
 
 .frontmatter-kanban-card-details {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(108px, 38%);
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 38%);
   align-items: stretch;
   gap: 8px;
 }
@@ -730,6 +787,7 @@
 }
 
 .frontmatter-kanban-card-stat.is-due {
+  grid-column: 2;
   align-items: center;
   padding: 6px 7px;
   border: 1px solid color-mix(in srgb, var(--fk-due-date) 42%, var(--fk-border));
@@ -801,9 +859,13 @@
   font-size: var(--font-ui-smaller);
 }
 
-@container (max-width: 320px) {
+@container (max-width: 260px) {
   .frontmatter-kanban-card-details {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .frontmatter-kanban-card-stat.is-due {
+    grid-column: auto;
   }
 }
 
@@ -1611,8 +1673,11 @@
   gap: 4px;
 }
 
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-priority-tag,
 .frontmatter-timeline-grid-card .frontmatter-kanban-card-status-tag,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-priority-tag,
 .frontmatter-timeline-day-card .frontmatter-kanban-card-status-tag,
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-priority-tag,
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-status-tag {
   padding: 1px 6px;
   font-size: 10px;
@@ -1709,6 +1774,26 @@
   color: inherit;
   font-size: inherit;
   font-weight: inherit;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project {
+  display: inline-flex;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project .frontmatter-kanban-card-stat-value {
+  color: var(--fk-project);
+  border-color: color-mix(in srgb, var(--fk-project) 42%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-project) 9%, transparent);
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-title-line {
+  gap: 6px;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-compact-due {
+  max-width: 78px;
+  padding: 1px 5px;
+  font-size: 10px;
 }
 
 .frontmatter-timeline-resize-handle {
@@ -1876,12 +1961,16 @@
 
 .frontmatter-timeline-day-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
 }
 
 .frontmatter-timeline-day-card {
   height: auto;
+  min-height: 138px;
+  padding: 12px;
+  border-radius: 12px;
+  border-left-width: 4px;
 }
 
 .frontmatter-timeline-sidebar-meta {
@@ -1913,7 +2002,7 @@
 }
 
 .frontmatter-timeline-toolbar.is-compact {
-  grid-template-columns: auto minmax(260px, 1fr) auto auto;
+  grid-template-columns: auto minmax(260px, 1fr) auto auto auto;
 }
 
 .frontmatter-timeline-mode-switch {
@@ -1928,7 +2017,8 @@
   text-align: center;
 }
 
-.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle {
+.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle,
+.frontmatter-timeline-toolbar .frontmatter-timeline-new {
   height: 36px;
   padding: 0 11px;
   color: var(--fk-text-secondary);
@@ -1940,11 +2030,34 @@
   font-weight: 700;
 }
 
+.frontmatter-timeline-toolbar .frontmatter-timeline-new {
+  min-width: 104px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: color-mix(in srgb, var(--fk-text-primary) 92%, #C4D0C2);
+  background: color-mix(in srgb, #8A9A8B 26%, transparent);
+  border-color: color-mix(in srgb, #A9B5A4 50%, var(--fk-border));
+}
+
+.frontmatter-timeline-new-icon,
+.frontmatter-timeline-new-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 .frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle:hover,
-.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle.is-active {
+.frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle.is-active,
+.frontmatter-timeline-toolbar .frontmatter-timeline-new:hover {
   color: var(--fk-text-primary);
   background: color-mix(in srgb, var(--fk-feature) 16%, transparent);
   border-color: color-mix(in srgb, var(--fk-feature) 44%, var(--fk-border));
+}
+
+.frontmatter-timeline-toolbar .frontmatter-timeline-new:hover {
+  background: color-mix(in srgb, #A9B5A4 34%, transparent);
+  border-color: color-mix(in srgb, #B9C5B5 62%, var(--fk-border));
 }
 
 .frontmatter-timeline-drop-preview {
@@ -1969,23 +2082,112 @@
   display: block;
 }
 
-.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project,
 .frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project {
   display: inline-flex;
 }
 
-.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-project .frontmatter-kanban-card-stat-value,
 .frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project .frontmatter-kanban-card-stat-value {
   color: var(--fk-project);
   border-color: color-mix(in srgb, var(--fk-project) 42%, var(--fk-border));
   background: color-mix(in srgb, var(--fk-project) 9%, transparent);
 }
 
-.frontmatter-timeline-grid-card .frontmatter-kanban-card-stat.is-feature .frontmatter-kanban-card-stat-value,
 .frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-feature .frontmatter-kanban-card-stat-value {
   color: var(--fk-feature);
   border-color: color-mix(in srgb, var(--fk-feature) 42%, var(--fk-border));
   background: color-mix(in srgb, var(--fk-feature) 9%, transparent);
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 38%);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-icon,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-label {
+  display: inline-flex;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-label {
+  display: inline;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-value,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-project .frontmatter-kanban-card-stat-value,
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-feature .frontmatter-kanban-card-stat-value {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--fk-text-primary);
+  background: transparent;
+  font-size: var(--font-ui-small);
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due {
+  align-items: center;
+  padding: 6px 7px;
+  border: 1px solid color-mix(in srgb, var(--fk-due-date) 42%, var(--fk-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--fk-due-date) 8%, var(--fk-surface));
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due.is-due-yellow {
+  border-color: color-mix(in srgb, var(--fk-due-date) 58%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-due-date) 13%, var(--fk-surface));
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due.is-due-red {
+  border-color: color-mix(in srgb, var(--fk-high) 65%, var(--fk-border));
+  background: color-mix(in srgb, var(--fk-high) 15%, var(--fk-surface));
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due .frontmatter-kanban-card-stat-value {
+  padding: 0;
+  border: 0;
+  color: var(--fk-text-primary);
+  background: transparent;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-stat-value.is-due-date {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.05;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-due-year {
+  display: block;
+  color: var(--fk-text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.frontmatter-timeline-day-card .frontmatter-kanban-card-due-day-month {
+  color: var(--fk-text-primary);
+  font-size: 14px;
+  font-weight: 850;
 }
 
 .frontmatter-timeline-month-day.is-drop-target {
@@ -2083,6 +2285,7 @@
 .frontmatter-timeline-drop-column {
   border-right: 0;
   min-height: 100%;
+  pointer-events: none;
 }
 
 .frontmatter-timeline-week-grid .frontmatter-timeline-drop-column.is-weekend {
@@ -2274,4 +2477,83 @@
 
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-footer {
   display: flex;
+}
+
+.frontmatter-timeline-sidebar-header {
+  grid-template-columns: minmax(0, 1fr) auto 36px;
+  column-gap: 8px;
+}
+
+.frontmatter-timeline-sidebar-details-toggle {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 9px;
+  justify-self: end;
+  color: var(--fk-text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fk-border) 80%, transparent);
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.frontmatter-timeline-sidebar-details-toggle:hover,
+.frontmatter-timeline-sidebar-details-toggle.is-active {
+  color: var(--fk-text-primary);
+  background: color-mix(in srgb, var(--fk-feature) 16%, transparent);
+  border-color: color-mix(in srgb, var(--fk-feature) 44%, var(--fk-border));
+}
+
+.frontmatter-timeline-sidebar-toggle {
+  grid-column: 3;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact {
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-title-wrap {
+  gap: 6px;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-title {
+  font-size: 14px;
+  line-height: 1.18;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-tags {
+  gap: 4px;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-priority-tag,
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-status-tag {
+  padding: 1px 6px;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-title-line {
+  gap: 6px;
+}
+
+.frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-compact-due {
+  max-width: 78px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+.frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-header {
+  grid-template-columns: 1fr;
+}
+
+.frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-toggle {
+  grid-column: 1;
 }

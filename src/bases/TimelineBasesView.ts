@@ -1,4 +1,4 @@
-import { BasesView, ButtonComponent, TFile } from "obsidian";
+import { BasesView, ButtonComponent, setIcon, TFile } from "obsidian";
 import type { BasesViewFactory } from "obsidian";
 import { BASES_TIMELINE_VIEW_TYPE, PRIORITIES } from "../constants";
 import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
@@ -107,9 +107,14 @@ export class TimelineBasesView extends BasesView {
     this.collapsedSidebarGroups = new Set();
     this.isSidebarCollapsed = false;
     this.sidebarStatusOrder = [];
+    this.showSidebarDetails = true;
+    this.createFileForView = async (baseFileName, frontmatterProcessor) => {
+      this.openCreateTaskModal(this.getCreateTaskInitialValues(baseFileName, frontmatterProcessor));
+    };
   }
 
   onload() {
+    this.installBasesToolbarNewHandler();
     this.render();
   }
 
@@ -117,8 +122,42 @@ export class TimelineBasesView extends BasesView {
     this.render();
   }
 
-  async createFileForView() {
-    new CreateTaskModal(this.plugin.app, this.plugin).open();
+  openCreateTaskModal(initialValues = {}) {
+    new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
+  }
+
+  getCreateTaskInitialValues(baseFileName = "", frontmatterProcessor) {
+    const initialValues = {};
+    const title = String(baseFileName || "").trim();
+    if (title) initialValues.title = title;
+    if (typeof frontmatterProcessor === "function") {
+      const frontmatter = {};
+      frontmatterProcessor(frontmatter);
+      Object.assign(initialValues, frontmatter);
+    }
+    return initialValues;
+  }
+
+  installBasesToolbarNewHandler() {
+    this.registerDomEvent(document, "click", (event) => {
+      if (!this.shouldHandleBasesNewClick(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      this.openCreateTaskModal();
+    }, { capture: true });
+  }
+
+  shouldHandleBasesNewClick(event) {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const button = target ? target.closest("button, .clickable-icon, [role='button']") : null;
+    if (!button || this.containerEl.contains(button)) return false;
+
+    const label = `${button.getAttribute("aria-label") || ""} ${button.textContent || ""}`.trim().toLowerCase();
+    if (!/(^|\s)new($|\s)/.test(label)) return false;
+
+    const leaf = this.containerEl.closest(".workspace-leaf-content, .workspace-leaf");
+    return !leaf || leaf.contains(button);
   }
 
   render() {
@@ -246,6 +285,13 @@ export class TimelineBasesView extends BasesView {
         this.render();
       });
     if (this.getHideWeekends()) weekendsButton.buttonEl.addClass("is-active");
+
+    const newTaskButton = toolbar.createEl("button", { cls: "frontmatter-timeline-new" });
+    newTaskButton.setAttr("aria-label", "Create task");
+    newTaskButton.setAttr("type", "button");
+    setIcon(newTaskButton.createSpan({ cls: "frontmatter-timeline-new-icon" }), "plus");
+    newTaskButton.createSpan({ text: "New Task" });
+    this.registerDomEvent(newTaskButton, "click", () => this.openCreateTaskModal());
   }
 
   shiftPeriod(direction) {
@@ -333,7 +379,7 @@ export class TimelineBasesView extends BasesView {
     grid.style.setProperty("--timeline-lane-height", `${laneHeight}px`);
     grid.style.setProperty("--timeline-visible-days", String(visibleDays.length || 1));
     grid.style.gridTemplateColumns = `repeat(${visibleDays.length}, minmax(var(--timeline-day-width), 1fr))`;
-    grid.style.gridTemplateRows = `64px repeat(${rowCount}, var(--timeline-lane-height))`;
+    grid.style.gridTemplateRows = `64px repeat(${rowCount}, var(--timeline-lane-height)) minmax(0, 1fr)`;
 
     this.registerDomEvent(grid, "dragover", (event) => {
       if (!this.getDropDate(event, grid, visibleDays)) return;
@@ -371,7 +417,7 @@ export class TimelineBasesView extends BasesView {
       const dropColumn = grid.createDiv({ cls: "frontmatter-timeline-drop-column" });
       if (date.getDay() === 0 || date.getDay() === 6) dropColumn.addClass("is-weekend");
       dropColumn.style.gridColumn = String(index + 1);
-      dropColumn.style.gridRow = `2 / span ${rowCount}`;
+      dropColumn.style.gridRow = "2 / -1";
     });
 
     scheduled.forEach((item, index) => {
@@ -433,7 +479,9 @@ export class TimelineBasesView extends BasesView {
       badgeMode: "status",
       extraClass,
       accent: getPriorityAccent(task),
+      compactDueInTitle: extraClass === "frontmatter-timeline-grid-card",
       hidePriorityBadge: true,
+      hideDueDetail: extraClass === "frontmatter-timeline-grid-card",
       hideSummary: extraClass !== "frontmatter-timeline-day-card",
       hideTodos: false,
       hideCompletedFooter: true,
@@ -763,7 +811,7 @@ export class TimelineBasesView extends BasesView {
       header.createSpan({ text: status });
       header.createSpan({ cls: "frontmatter-timeline-day-count", text: String(groupTasks.length) });
       const cards = section.createDiv({ cls: "frontmatter-timeline-day-cards" });
-      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task));
+      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task, "frontmatter-timeline-day-card"));
     });
 
     if (!dayTasks.length) {
@@ -775,7 +823,20 @@ export class TimelineBasesView extends BasesView {
     const sidebar = shell.createDiv({ cls: "frontmatter-timeline-sidebar" });
     if (this.isSidebarCollapsed) sidebar.addClass("is-collapsed");
     const header = sidebar.createDiv({ cls: "frontmatter-timeline-sidebar-header" });
-    if (!this.isSidebarCollapsed) header.createDiv({ cls: "frontmatter-timeline-sidebar-title", text: "Task List" });
+    if (!this.isSidebarCollapsed) {
+      header.createDiv({ cls: "frontmatter-timeline-sidebar-title", text: "Task List" });
+      const detailsButton = new ButtonComponent(header)
+        .setButtonText("Show details")
+        .setTooltip("Toggle detailed task cards")
+        .setClass("frontmatter-timeline-sidebar-details-toggle")
+        .onClick(() => {
+          this.showSidebarDetails = !this.showSidebarDetails;
+          this.render();
+        });
+      if (this.showSidebarDetails) {
+        detailsButton.buttonEl.addClass("is-active");
+      }
+    }
     new ButtonComponent(header)
       .setIcon(this.isSidebarCollapsed ? "panel-left-open" : "panel-right-close")
       .setTooltip(this.isSidebarCollapsed ? "Show task list" : "Hide task list")
@@ -833,9 +894,28 @@ export class TimelineBasesView extends BasesView {
 
       const list = section.createDiv({ cls: "frontmatter-timeline-sidebar-list" });
       groupTasks.forEach((task) => {
-        this.renderFullTaskCard(list, task);
+        this.renderSidebarTaskCard(list, task);
       });
     }
+  }
+
+  renderSidebarTaskCard(container, task) {
+    if (this.showSidebarDetails) {
+      return this.renderFullTaskCard(container, task, "frontmatter-timeline-sidebar-card");
+    }
+
+    return renderTaskCard(this, container, task, {
+      extraClass: "frontmatter-timeline-sidebar-card is-compact",
+      accent: getPriorityAccent(task),
+      compactDueInTitle: true,
+      hidePriorityBadge: false,
+      hideWorkBadge: true,
+      hideDetails: true,
+      hideSummary: true,
+      hideTodos: true,
+      hideCompletedFooter: true,
+      onDragEnd: () => this.containerEl.querySelector(".frontmatter-timeline-grid")?.removeClass("is-drag-over")
+    });
   }
 
   renderFullTaskCard(container, task, extraClass = "") {
