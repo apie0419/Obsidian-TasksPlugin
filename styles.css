@@ -281,26 +281,6 @@
   overscroll-behavior: contain;
 }
 
-.frontmatter-kanban-view-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px 14px 0;
-  background: var(--fk-background);
-}
-
-.frontmatter-kanban-view-toolbar .frontmatter-kanban-view-new {
-  min-height: 34px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--fk-text-primary);
-  background: color-mix(in srgb, var(--fk-card) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--fk-border) 84%, transparent);
-  border-radius: 6px;
-}
-
 .frontmatter-kanban-column {
   display: flex;
   flex-direction: column;
@@ -1286,7 +1266,6 @@
 
 .frontmatter-timeline-nav button,
 .frontmatter-timeline-toolbar .frontmatter-timeline-today,
-.frontmatter-timeline-toolbar .frontmatter-timeline-new,
 .frontmatter-timeline-sidebar-header button {
   height: 36px;
   min-width: 36px;
@@ -1303,7 +1282,6 @@
 
 .frontmatter-timeline-nav button:hover,
 .frontmatter-timeline-toolbar .frontmatter-timeline-today:hover,
-.frontmatter-timeline-toolbar .frontmatter-timeline-new:hover,
 .frontmatter-timeline-sidebar-header button:hover {
   background: color-mix(in srgb, var(--fk-border) 34%, transparent);
 }
@@ -1935,7 +1913,7 @@
 }
 
 .frontmatter-timeline-toolbar.is-compact {
-  grid-template-columns: auto minmax(260px, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(260px, 1fr) auto auto;
 }
 
 .frontmatter-timeline-mode-switch {
@@ -2240,6 +2218,31 @@
 
 .frontmatter-timeline-full-card .frontmatter-kanban-card-footer {
   display: none;
+}
+
+.frontmatter-timeline-sidebar-header {
+  grid-template-columns: minmax(0, 1fr) 36px;
+}
+
+.frontmatter-timeline-sidebar-title {
+  grid-column: 1;
+  justify-self: start;
+  text-align: left;
+}
+
+.frontmatter-timeline-sidebar-toggle {
+  grid-column: 2;
+  justify-self: end;
+}
+
+.frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-header {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+.frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-toggle {
+  grid-column: 1;
+  justify-self: center;
 }
 
 .frontmatter-timeline-sidebar-card {

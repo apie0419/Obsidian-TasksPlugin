@@ -75,14 +75,6 @@ export class KanbanBasesView extends BasesView {
     this.containerEl.addClass("frontmatter-kanban");
     this.containerEl.addClass("frontmatter-kanban-bases");
 
-    const toolbar = this.containerEl.createDiv({ cls: "frontmatter-kanban-view-toolbar" });
-    new ButtonComponent(toolbar)
-      .setButtonText("New")
-      .setIcon("plus")
-      .setTooltip("Create task")
-      .setClass("frontmatter-kanban-view-new")
-      .onClick(() => this.openCreateTaskModal());
-
     const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
     board.style.setProperty("--kanban-column-width", `${this.getColumnWidth()}px`);
     const groups = this.getGroups();

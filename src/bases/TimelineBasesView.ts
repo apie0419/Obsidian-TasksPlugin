@@ -227,12 +227,6 @@ export class TimelineBasesView extends BasesView {
       });
 
     new ButtonComponent(toolbar)
-      .setButtonText("New")
-      .setIcon("plus")
-      .setClass("frontmatter-timeline-new")
-      .onClick(() => new CreateTaskModal(this.plugin.app, this.plugin).open());
-
-    new ButtonComponent(toolbar)
       .setButtonText("Today")
       .setClass("frontmatter-timeline-today")
       .onClick(() => {
@@ -769,7 +763,7 @@ export class TimelineBasesView extends BasesView {
       header.createSpan({ text: status });
       header.createSpan({ cls: "frontmatter-timeline-day-count", text: String(groupTasks.length) });
       const cards = section.createDiv({ cls: "frontmatter-timeline-day-cards" });
-      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task, ""));
+      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task));
     });
 
     if (!dayTasks.length) {
@@ -839,12 +833,12 @@ export class TimelineBasesView extends BasesView {
 
       const list = section.createDiv({ cls: "frontmatter-timeline-sidebar-list" });
       groupTasks.forEach((task) => {
-        this.renderFullTaskCard(list, task, "");
+        this.renderFullTaskCard(list, task);
       });
     }
   }
 
-  renderFullTaskCard(container, task, extraClass) {
+  renderFullTaskCard(container, task, extraClass = "") {
     return renderTaskCard(this, container, task, {
       extraClass,
       accent: getPriorityAccent(task),

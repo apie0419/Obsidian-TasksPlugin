@@ -1134,8 +1134,6 @@ var KanbanBasesView = class extends import_obsidian3.BasesView {
     this.containerEl.removeClass("frontmatter-timeline");
     this.containerEl.addClass("frontmatter-kanban");
     this.containerEl.addClass("frontmatter-kanban-bases");
-    const toolbar = this.containerEl.createDiv({ cls: "frontmatter-kanban-view-toolbar" });
-    new import_obsidian3.ButtonComponent(toolbar).setButtonText("New").setIcon("plus").setTooltip("Create task").setClass("frontmatter-kanban-view-new").onClick(() => this.openCreateTaskModal());
     const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
     board.style.setProperty("--kanban-column-width", `${this.getColumnWidth()}px`);
     const groups = this.getGroups();
@@ -1442,7 +1440,6 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       this.shiftPeriod(1);
       this.render();
     });
-    new import_obsidian4.ButtonComponent(toolbar).setButtonText("New").setIcon("plus").setClass("frontmatter-timeline-new").onClick(() => new CreateTaskModal(this.plugin.app, this.plugin).open());
     new import_obsidian4.ButtonComponent(toolbar).setButtonText("Today").setClass("frontmatter-timeline-today").onClick(() => {
       this.anchorDate = /* @__PURE__ */ new Date();
       this.render();
@@ -1919,7 +1916,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       header.createSpan({ text: status });
       header.createSpan({ cls: "frontmatter-timeline-day-count", text: String(groupTasks.length) });
       const cards = section.createDiv({ cls: "frontmatter-timeline-day-cards" });
-      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task, ""));
+      groupTasks.forEach((task) => this.renderFullTaskCard(cards, task));
     });
     if (!dayTasks.length) {
       list.createDiv({ cls: "frontmatter-timeline-empty", text: "No tasks scheduled for this day." });
@@ -1979,11 +1976,11 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       });
       const list = section.createDiv({ cls: "frontmatter-timeline-sidebar-list" });
       groupTasks.forEach((task) => {
-        this.renderFullTaskCard(list, task, "");
+        this.renderFullTaskCard(list, task);
       });
     }
   }
-  renderFullTaskCard(container, task, extraClass) {
+  renderFullTaskCard(container, task, extraClass = "") {
     return renderTaskCard(this, container, task, {
       extraClass,
       accent: getPriorityAccent(task),
