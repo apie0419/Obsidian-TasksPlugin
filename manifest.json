@@ -1,7 +1,7 @@
 {
   "id": "frontmatter-kanban-board",
   "name": "TaskManagement",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "minAppVersion": "1.5.0",
   "description": "TaskManagement for Markdown task notes with Obsidian-readable frontmatter.",
   "author": "Codex",
