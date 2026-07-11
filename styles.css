@@ -499,7 +499,8 @@
 }
 
 .frontmatter-kanban-card-priority-tag,
-.frontmatter-kanban-card-work-tag {
+.frontmatter-kanban-card-work-tag,
+.frontmatter-kanban-card-status-tag {
   max-width: 100%;
   padding: 2px 7px;
   border: 1px solid var(--fk-border);
@@ -537,6 +538,14 @@
   border-color: color-mix(in srgb, var(--fk-date) 38%, var(--fk-border));
   background: color-mix(in srgb, var(--fk-date) 9%, var(--fk-surface));
   font-weight: 700;
+  text-transform: none;
+}
+
+.frontmatter-kanban-card-status-tag {
+  color: var(--kanban-column-accent, var(--fk-feature));
+  border-color: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 42%, var(--fk-border));
+  background: color-mix(in srgb, var(--kanban-column-accent, var(--fk-feature)) 10%, var(--fk-surface));
+  font-weight: 750;
   text-transform: none;
 }
 
@@ -1171,5 +1180,383 @@
     align-items: stretch;
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+}
+
+.frontmatter-timeline {
+  gap: 0;
+}
+
+.frontmatter-timeline-toolbar {
+  display: grid;
+  grid-template-columns: minmax(170px, auto) auto minmax(260px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--fk-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--fk-surface) 92%, transparent), color-mix(in srgb, var(--fk-background) 92%, transparent)),
+    var(--fk-background);
+}
+
+.frontmatter-timeline-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--fk-text-primary);
+  font-size: 20px;
+  font-weight: 760;
+}
+
+.frontmatter-timeline-title-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fk-text-primary);
+  border: 1px solid var(--fk-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--fk-card) 88%, transparent);
+}
+
+.frontmatter-timeline-title-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.frontmatter-timeline-mode-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 40px);
+  gap: 0;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--fk-border) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fk-card) 80%, transparent);
+}
+
+.frontmatter-timeline-mode-switch button {
+  height: 34px;
+  padding: 0;
+  color: var(--fk-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.frontmatter-timeline-mode-switch button:hover,
+.frontmatter-timeline-mode-switch button.is-active {
+  color: var(--fk-text-primary);
+  background: color-mix(in srgb, var(--fk-feature) 36%, var(--fk-card));
+}
+
+.frontmatter-timeline-nav {
+  justify-self: center;
+  width: min(520px, 100%);
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--fk-border) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fk-background) 84%, transparent);
+}
+
+.frontmatter-timeline-nav button,
+.frontmatter-timeline-toolbar .frontmatter-timeline-today,
+.frontmatter-timeline-sidebar-header button {
+  height: 36px;
+  min-width: 36px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fk-text-primary);
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.frontmatter-timeline-nav button:hover,
+.frontmatter-timeline-toolbar .frontmatter-timeline-today:hover,
+.frontmatter-timeline-sidebar-header button:hover {
+  background: color-mix(in srgb, var(--fk-border) 34%, transparent);
+}
+
+.frontmatter-timeline-period-label {
+  min-width: 0;
+  padding: 0 12px;
+  color: var(--fk-text-primary);
+  text-align: center;
+  font-size: var(--font-ui-medium);
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.frontmatter-timeline-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 14px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.frontmatter-timeline-main,
+.frontmatter-timeline-sidebar {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--fk-border) 82%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--fk-surface) 84%, transparent), transparent 220px),
+    var(--fk-background);
+}
+
+.frontmatter-timeline-main {
+  overflow: auto;
+}
+
+.frontmatter-timeline-grid {
+  min-width: max-content;
+  min-height: 100%;
+  display: grid;
+  position: relative;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--fk-border) 72%, transparent) 1px, transparent 1px) var(--timeline-label-width) 0 / var(--timeline-day-width) 100% repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--fk-border) 58%, transparent) 1px, transparent 1px) 0 78px / 100% var(--timeline-lane-height) repeat,
+    var(--fk-background);
+}
+
+.frontmatter-timeline-grid.is-drag-over {
+  outline: 2px dashed color-mix(in srgb, var(--fk-feature) 86%, var(--fk-text-primary));
+  outline-offset: -5px;
+}
+
+.frontmatter-timeline-corner,
+.frontmatter-timeline-day-header,
+.frontmatter-timeline-lane-label {
+  z-index: 2;
+  background: color-mix(in srgb, var(--fk-background) 90%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--fk-border) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--fk-border) 72%, transparent);
+}
+
+.frontmatter-timeline-corner {
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
+  color: var(--fk-text-secondary);
+  font-weight: 760;
+}
+
+.frontmatter-timeline-day-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
+  color: var(--fk-text-primary);
+  text-align: center;
+}
+
+.frontmatter-timeline-day-header.is-weekend {
+  color: var(--fk-high);
+}
+
+.frontmatter-timeline-day-header.is-today {
+  color: var(--fk-feature);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--fk-feature) 16%, transparent), transparent),
+    color-mix(in srgb, var(--fk-background) 90%, transparent);
+}
+
+.frontmatter-timeline-day-number {
+  font-size: 16px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+
+.frontmatter-timeline-weekday {
+  font-size: var(--font-ui-small);
+  font-weight: 700;
+}
+
+.frontmatter-timeline-day-header.is-today .frontmatter-timeline-weekday {
+  width: fit-content;
+  min-width: 32px;
+  margin: 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--fk-background);
+  background: var(--fk-feature);
+}
+
+.frontmatter-timeline-drop-column {
+  z-index: 1;
+  min-height: 100%;
+  border-right: 1px solid color-mix(in srgb, var(--fk-border) 36%, transparent);
+}
+
+.frontmatter-timeline-drop-column.is-weekend {
+  background: color-mix(in srgb, var(--fk-high) 5%, transparent);
+}
+
+.frontmatter-timeline-lane-label {
+  position: sticky;
+  left: 0;
+}
+
+.frontmatter-timeline-task {
+  z-index: 4;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 10px;
+}
+
+.frontmatter-timeline-grid-card {
+  height: 100%;
+  min-height: 118px;
+  overflow: hidden;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-title {
+  font-size: 1.08em;
+}
+
+.frontmatter-timeline-grid-card .frontmatter-kanban-card-details {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.frontmatter-timeline-empty {
+  z-index: 4;
+  align-self: start;
+  margin: 18px;
+  padding: 18px;
+  color: var(--fk-text-muted);
+  text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--fk-border) 86%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fk-card) 66%, transparent);
+}
+
+.frontmatter-timeline-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.frontmatter-timeline-sidebar-header {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fk-border) 78%, transparent);
+  background: color-mix(in srgb, var(--fk-surface) 88%, transparent);
+}
+
+.frontmatter-timeline-sidebar-title {
+  min-width: 0;
+  color: var(--fk-text-primary);
+  font-size: 20px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.frontmatter-timeline-sidebar-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 12px 16px;
+}
+
+.frontmatter-timeline-sidebar-section {
+  --timeline-section-accent: var(--fk-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 18px;
+}
+
+.frontmatter-timeline-sidebar-section.priority-high {
+  --timeline-section-accent: var(--fk-high);
+}
+
+.frontmatter-timeline-sidebar-section.priority-medium {
+  --timeline-section-accent: var(--fk-medium);
+}
+
+.frontmatter-timeline-sidebar-section.priority-low {
+  --timeline-section-accent: var(--fk-low);
+}
+
+.frontmatter-timeline-sidebar-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fk-text-secondary);
+  font-size: var(--font-ui-small);
+  font-weight: 760;
+}
+
+.frontmatter-timeline-sidebar-priority-dot {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 11px solid var(--timeline-section-accent);
+}
+
+.frontmatter-timeline-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.frontmatter-timeline-sidebar-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-title {
+  font-size: 1em;
+  line-height: 1.22;
+}
+
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-summary,
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-todos,
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-divider,
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-details,
+.frontmatter-timeline-sidebar-card .frontmatter-kanban-card-footer {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .frontmatter-timeline-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .frontmatter-timeline-nav {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .frontmatter-timeline-shell {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .frontmatter-timeline-sidebar {
+    min-height: 360px;
   }
 }

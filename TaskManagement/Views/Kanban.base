@@ -30,3 +30,26 @@ views:
         direction: ASC
     options:
       columnWidth: 380
+  - type: frontmatterTimeline
+    name: Timeline
+    order:
+      - note.status
+      - note.project
+      - note.feature
+      - note.priority
+      - formula.priorityWeight
+      - note.due
+      - note.work_start
+      - note.work_end
+      - note.completed
+      - file.name
+    sort:
+      - property: note.work_start
+        direction: ASC
+      - property: formula.priorityWeight
+        direction: DESC
+      - property: note.due
+        direction: ASC
+    options:
+      dayWidth: 170
+      laneHeight: 178

@@ -1,10 +1,9 @@
-import { BasesView, ButtonComponent, Menu, TFile, setIcon } from "obsidian";
+import { BasesView, ButtonComponent, TFile } from "obsidian";
 import type { BasesViewFactory } from "obsidian";
 import { BASES_KANBAN_VIEW_TYPE } from "../constants";
-import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
+import { CreateTaskModal } from "../modals/TaskModals";
 import { statusEquals } from "../status";
-import { getDueClass, getTaskTitle } from "../taskFields";
-import { formatDateForInput, formatDateLabel, formatDateTimeForInput } from "../utils/date";
+import { renderTaskCard } from "./TaskCard";
 
 const COLUMN_ACCENTS = [
   "#829C92",
@@ -42,36 +41,6 @@ function getStatusAccent(status, fallback) {
   return STATUS_ACCENTS[normalized] || STATUS_ACCENTS[compact] || fallback;
 }
 
-function formatReferenceLabel(value) {
-  const text = String(value || "").trim();
-  const wikilink = text.match(/^\[\[(.+)\]\]$/);
-  if (!wikilink) return text;
-
-  const target = wikilink[1];
-  const alias = target.includes("|") ? target.split("|").pop() : target;
-  return alias.split("/").pop();
-}
-
-function formatCompactDate(value) {
-  return formatDateForInput(value).replace(/-/g, "/");
-}
-
-function formatDueDateParts(value) {
-  const dateText = formatDateForInput(value);
-  const match = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const monthIndex = Number(match[2]) - 1;
-  const month = months[monthIndex];
-  if (!month) return null;
-
-  return {
-    year: match[1],
-    dayMonth: `${Number(match[3])} ${month}`
-  };
-}
-
 export class KanbanBasesView extends BasesView {
   type = BASES_KANBAN_VIEW_TYPE;
 
@@ -102,6 +71,7 @@ export class KanbanBasesView extends BasesView {
 
   render() {
     this.containerEl.empty();
+    this.containerEl.removeClass("frontmatter-timeline");
     this.containerEl.addClass("frontmatter-kanban");
     this.containerEl.addClass("frontmatter-kanban-bases");
 
@@ -241,191 +211,16 @@ export class KanbanBasesView extends BasesView {
   }
 
   renderCard(cards, task) {
-    const priority = String(task.frontmatter.priority || "").trim().toLowerCase();
-    const priorityClass = priority ? `priority-${priority}` : "";
-    const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass}` });
-    card.draggable = true;
-    this.registerDomEvent(card, "dragstart", (event) => {
-      if (!event.dataTransfer) return;
-      card.addClass("is-dragging");
-      event.dataTransfer.setData("text/plain", task.file.path);
-      event.dataTransfer.effectAllowed = "move";
-    });
-    this.registerDomEvent(card, "dragend", () => {
-      card.removeClass("is-dragging");
-      this.suppressNextCardClick = true;
-      this.containerEl.querySelectorAll(".frontmatter-kanban-cards.is-drag-over").forEach((element) => {
-        element.classList.remove("is-drag-over");
-      });
-      this.containerEl.querySelectorAll(".frontmatter-kanban-column.is-drag-target").forEach((element) => {
-        element.classList.remove("is-drag-target");
-      });
-      window.setTimeout(() => {
-        this.suppressNextCardClick = false;
-      }, 80);
-    });
-    this.registerDomEvent(card, "click", (event) => {
-      if (this.suppressNextCardClick) return;
-      if (event.detail > 1) return;
-      if (this.cardClickTimer) window.clearTimeout(this.cardClickTimer);
-      this.cardClickTimer = window.setTimeout(() => {
-        this.cardClickTimer = null;
-        new EditTaskModal(this.plugin.app, this.plugin, task).open();
-      }, 300);
-    });
-    this.registerDomEvent(card, "dblclick", (event) => {
-      event.preventDefault();
-      if (this.cardClickTimer) {
-        window.clearTimeout(this.cardClickTimer);
-        this.cardClickTimer = null;
-      }
-      this.plugin.openTaskFile(task.file);
-    });
-    this.registerDomEvent(card, "contextmenu", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (this.cardClickTimer) {
-        window.clearTimeout(this.cardClickTimer);
-        this.cardClickTimer = null;
-      }
-      this.openTaskMenu(event, task);
-    });
-
-    const workStart = formatCompactDate(task.frontmatter.work_start);
-    const workEnd = formatCompactDate(task.frontmatter.work_end);
-    const workRange = workStart && workEnd ? `${workStart} -> ${workEnd}` : workStart || workEnd;
-    const dueDateParts = task.frontmatter.due ? formatDueDateParts(task.frontmatter.due) : null;
-
-    const hero = card.createDiv({ cls: "frontmatter-kanban-card-hero" });
-    const titleBlock = hero.createDiv({ cls: "frontmatter-kanban-card-title-block" });
-    const titleText = titleBlock.createDiv({ cls: "frontmatter-kanban-card-title-wrap" });
-    const titleTags = titleText.createDiv({ cls: "frontmatter-kanban-card-tags" });
-    if (priority) {
-      titleTags.createSpan({ cls: `frontmatter-kanban-card-priority-tag ${priorityClass}`, text: priority });
-    }
-    if (workRange) {
-      titleTags.createSpan({ cls: "frontmatter-kanban-card-work-tag", text: workRange });
-    }
-    titleText.createDiv({ cls: "frontmatter-kanban-card-title", text: getTaskTitle(task) });
-
-    const summary = this.getCardSummary(task);
-    if (summary) {
-      card.createDiv({ cls: "frontmatter-kanban-card-summary", text: summary });
-    }
-
-    this.renderTodoProgress(card, task);
-
-    const project = formatReferenceLabel(task.frontmatter.project);
-    const feature = formatReferenceLabel(task.frontmatter.feature);
-    if (project || feature || dueDateParts) {
-      card.createDiv({ cls: "frontmatter-kanban-card-divider" });
-      const details = card.createDiv({ cls: "frontmatter-kanban-card-details" });
-      if (project || feature) {
-        const stats = details.createDiv({ cls: "frontmatter-kanban-card-stats" });
-        if (project) {
-          const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-project" });
-          setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "rocket");
-          const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-          body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Project" });
-          body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: project });
-        }
-        if (feature) {
-          const item = stats.createDiv({ cls: "frontmatter-kanban-card-stat is-feature" });
-          setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "wrench");
-          const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-          body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Feature" });
-          body.createSpan({ cls: "frontmatter-kanban-card-stat-value", text: feature });
-        }
-      }
-      if (dueDateParts) {
-        const item = details.createDiv({ cls: `frontmatter-kanban-card-stat is-due ${getDueClass(task)}` });
-        setIcon(item.createSpan({ cls: "frontmatter-kanban-card-stat-icon" }), "calendar");
-        const body = item.createDiv({ cls: "frontmatter-kanban-card-stat-body" });
-        body.createSpan({ cls: "frontmatter-kanban-card-stat-label", text: "Due date" });
-        const value = body.createSpan({ cls: "frontmatter-kanban-card-stat-value is-due-date" });
-        value.createSpan({ cls: "frontmatter-kanban-card-due-year", text: dueDateParts.year });
-        value.createSpan({ cls: "frontmatter-kanban-card-due-day-month", text: dueDateParts.dayMonth });
-      }
-    }
-    if (false) {
-      const meta = card.createDiv({ cls: "frontmatter-kanban-card-meta" });
-      if (project) {
-        meta.createSpan({ cls: "frontmatter-kanban-card-reference is-project", text: `🚀 ${project}` });
-      }
-      if (feature) {
-        meta.createSpan({ cls: "frontmatter-kanban-card-reference is-feature", text: `🛠️ ${feature}` });
-      }
-      if (task.frontmatter.priority) {
-        meta.createSpan({ cls: `priority-${task.frontmatter.priority}`, text: task.frontmatter.priority });
-      }
-      if (false) {
-        meta.createSpan({ cls: "frontmatter-kanban-card-work", text: `Work on ${workOn}` });
-      }
-    }
-
-    if (task.frontmatter.completed) {
-      const footer = card.createDiv({ cls: "frontmatter-kanban-card-footer" });
-      if (false) {
-        const due = footer.createSpan({ cls: "frontmatter-kanban-card-date" });
-        setIcon(due.createSpan(), "calendar");
-        due.createSpan({ text: formatDateLabel(task.frontmatter.due) || formatDateTimeForInput(task.frontmatter.due).replace("T", " ") });
-      }
-      if (task.frontmatter.completed) {
-        const completed = footer.createSpan({ cls: "frontmatter-kanban-card-date is-complete" });
-        setIcon(completed.createSpan(), "check-circle-2");
-        completed.createSpan({ text: formatDateLabel(task.frontmatter.completed) });
-      }
-    }
-  }
-
-  renderTodoProgress(card, task) {
-    const todo = card.createDiv({ cls: "frontmatter-kanban-card-todos is-loading" });
-    this.plugin.getTaskTodoStats(task.file)
-      .then((stats) => {
-        if (!todo.isConnected) return;
-        todo.empty();
-        todo.removeClass("is-loading");
-
-        if (!stats.total) {
-          todo.detach();
-          return;
-        }
-
-        const progress = todo.createDiv({ cls: "frontmatter-kanban-card-todo-progress" });
-        const fill = progress.createDiv({ cls: "frontmatter-kanban-card-todo-progress-fill" });
-        fill.style.width = `${Math.round((stats.completed / stats.total) * 100)}%`;
-        todo.createSpan({
-          cls: "frontmatter-kanban-card-todo-count",
-          text: `${stats.completed}/${stats.total}`
+    renderTaskCard(this, cards, task, {
+      onDragEnd: () => {
+        this.containerEl.querySelectorAll(".frontmatter-kanban-cards.is-drag-over").forEach((element) => {
+          element.classList.remove("is-drag-over");
         });
-      })
-      .catch(() => {
-        todo.detach();
-      });
-  }
-
-  openTaskMenu(event, task) {
-    const menu = new Menu();
-    menu.addItem((item) => item
-      .setTitle("Edit task")
-      .setIcon("pencil")
-      .onClick(() => new EditTaskModal(this.plugin.app, this.plugin, task).open()));
-    menu.addItem((item) => item
-      .setTitle("Open note")
-      .setIcon("file-text")
-      .onClick(() => this.plugin.openTaskFile(task.file)));
-    menu.addSeparator();
-    menu.addItem((item) => item
-      .setTitle("Delete task")
-      .setIcon("trash-2")
-      .setWarning(true)
-      .onClick(() => this.plugin.deleteTask(task.file)));
-    menu.showAtMouseEvent(event);
-  }
-
-  getCardSummary(task) {
-    const fm = task.frontmatter;
-    return String(fm.description || fm.summary || fm.notes || "").trim();
+        this.containerEl.querySelectorAll(".frontmatter-kanban-column.is-drag-target").forEach((element) => {
+          element.classList.remove("is-drag-target");
+        });
+      }
+    });
   }
 }
 

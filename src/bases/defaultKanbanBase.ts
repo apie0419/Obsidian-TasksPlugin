@@ -1,4 +1,4 @@
-import { PRIORITY_WEIGHTS, TASK_FOLDER, TASK_TAG } from "../constants";
+import { BASES_KANBAN_VIEW_TYPE, BASES_TIMELINE_VIEW_TYPE, PRIORITY_WEIGHTS, TASK_FOLDER, TASK_TAG } from "../constants";
 
 function escapeBaseString(value) {
   return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
@@ -22,7 +22,7 @@ formulas:
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
   daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
 views:
-  - type: frontmatterKanban
+  - type: ${BASES_KANBAN_VIEW_TYPE}
     name: Kanban Board
     groupBy:
       property: note.status
@@ -45,5 +45,33 @@ views:
         direction: ASC
     options:
       columnWidth: 380
+${generateTimelineBaseViewBlock()}
+`;
+}
+
+export function generateTimelineBaseViewBlock() {
+  return `  - type: ${BASES_TIMELINE_VIEW_TYPE}
+    name: Timeline
+    order:
+      - note.status
+      - note.project
+      - note.feature
+      - note.priority
+      - formula.priorityWeight
+      - note.due
+      - note.work_start
+      - note.work_end
+      - note.completed
+      - file.name
+    sort:
+      - property: note.work_start
+        direction: ASC
+      - property: formula.priorityWeight
+        direction: DESC
+      - property: note.due
+        direction: ASC
+    options:
+      dayWidth: 170
+      laneHeight: 178
 `;
 }

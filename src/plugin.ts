@@ -1,6 +1,7 @@
 import { Notice, Plugin, TFile, normalizePath, stringifyYaml } from "obsidian";
 import {
   BASES_KANBAN_VIEW_TYPE,
+  BASES_TIMELINE_VIEW_TYPE,
   DEFAULT_SETTINGS,
   DEFAULT_KANBAN_BASE_FILE,
   FEATURE_FOLDER,
@@ -13,7 +14,8 @@ import {
   VIEWS_FOLDER,
 } from "./constants";
 import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
-import { generateDefaultKanbanBase } from "./bases/defaultKanbanBase";
+import { buildTimelineBasesViewFactory } from "./bases/TimelineBasesView";
+import { generateDefaultKanbanBase, generateTimelineBaseViewBlock } from "./bases/defaultKanbanBase";
 import { CreateTaskModal } from "./modals/TaskModals";
 import { KanbanSettingTab } from "./settings/KanbanSettingTab";
 import { cleanStatus, dedupeStatuses, isDoneStatus, statusEquals } from "./status";
@@ -137,7 +139,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       return;
     }
 
-    const registered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
+    const kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
       name: "Kanban Board",
       icon: "kanban",
       factory: buildKanbanBasesViewFactory(this),
@@ -154,8 +156,34 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       ]
     });
 
-    if (!registered) {
-      new Notice("Enable the Bases core plugin to use Kanban Board views.");
+    const timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
+      name: "Timeline",
+      icon: "calendar-days",
+      factory: buildTimelineBasesViewFactory(this),
+      options: () => [
+        {
+          type: "slider",
+          key: "dayWidth",
+          displayName: "Day width",
+          default: 170,
+          min: 120,
+          max: 260,
+          step: 10
+        },
+        {
+          type: "slider",
+          key: "laneHeight",
+          displayName: "Lane height",
+          default: 178,
+          min: 132,
+          max: 260,
+          step: 8
+        }
+      ]
+    });
+
+    if (!kanbanRegistered || !timelineRegistered) {
+      new Notice("Enable the Bases core plugin to use TaskManagement views.");
     }
   }
 
@@ -218,6 +246,14 @@ export default class FrontmatterKanbanPlugin extends Plugin {
         new RegExp(`(\\s+- note\\.tags\\.contains\\("${TASK_TAG}"\\))`),
         `$1\n${taskFolderFilter}`
       );
+    }
+
+    if (!nextContents.includes(`type: ${BASES_TIMELINE_VIEW_TYPE}`)) {
+      if (nextContents.includes("views:")) {
+        nextContents = `${nextContents.trimEnd()}\n${generateTimelineBaseViewBlock()}`;
+      } else {
+        nextContents = `${nextContents.trimEnd()}\nviews:\n${generateTimelineBaseViewBlock()}`;
+      }
     }
 
     if (nextContents === contents) return;
@@ -493,6 +529,18 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       } else {
         delete frontmatter.completed;
       }
+    });
+    this.refreshViews();
+  }
+
+  async updateTaskWorkRange(file, workStart, workEnd) {
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      ensureFrontmatterTag(frontmatter, TASK_TAG);
+      delete frontmatter.kanban_task;
+      if (workStart) frontmatter.work_start = workStart;
+      else delete frontmatter.work_start;
+      if (workEnd) frontmatter.work_end = workEnd;
+      else delete frontmatter.work_end;
     });
     this.refreshViews();
   }
