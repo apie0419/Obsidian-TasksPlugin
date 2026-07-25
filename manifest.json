@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
   "description": "TaskManagement for Markdown task notes with Obsidian-readable frontmatter.",
-  "author": "Codex",
-  "authorUrl": "",
+  "author": "apie0419",
+  "authorUrl": "https://github.com/apie0419",
   "isDesktopOnly": false
 }

@@ -1,12 +1,15 @@
 {
   "name": "taskmanagement",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "TaskManagement for Markdown task notes with an Obsidian Kanban board.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
-    "build": "node esbuild.config.mjs --production"
+    "build": "node esbuild.config.mjs --production",
+    "release:check": "node scripts/validate-release.mjs",
+    "release:package": "npm run build && node scripts/package-release.mjs",
+    "version": "node scripts/version-bump.mjs && git add manifest.json versions.json"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

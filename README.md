@@ -6,7 +6,7 @@ Each task is stored as a Markdown file with frontmatter, so Obsidian Bases can r
 
 ## Development
 
-Obsidian loads `main.js` from the plugin root. Maintain the source in `src/main.js`, then build the distributable `main.js`:
+Obsidian loads `main.js` from the plugin root. Maintain the source in `src/main.ts`, then build the distributable `main.js`:
 
 ```bash
 npm install
@@ -34,3 +34,31 @@ npm run dev
 - Custom fields: text, number, date, datetime, date range, select, checkbox.
 
 Recurrence jobs are intentionally not implemented yet.
+
+## Releasing
+
+Obsidian installs community plugins from GitHub Releases. Each release tag must exactly match the `version` in `manifest.json`, without a `v` prefix.
+
+Before publishing a release:
+
+```bash
+npm run release:package
+```
+
+This builds the plugin, checks the release metadata, and copies the installable files to `release/frontmatter-kanban-board/`:
+
+- `main.js`
+- `manifest.json`
+- `styles.css`
+
+To bump versions, update `minAppVersion` in `manifest.json` if needed, then run one of:
+
+```bash
+npm version patch
+npm version minor
+npm version major
+```
+
+The `npm version` hook keeps `manifest.json` and `versions.json` in sync with `package.json`.
+
+For the first community-directory submission, publish the GitHub repository, create a GitHub Release for the current version, and upload the three release assets. Then submit the repository through the Obsidian Community plugin portal.
