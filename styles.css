@@ -2592,3 +2592,447 @@
 .frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-toggle {
   grid-column: 1;
 }
+
+/* Responsive Obsidian mobile layout */
+:is(.is-mobile, .is-phone) .frontmatter-kanban {
+  gap: 0;
+  overflow: hidden;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-board {
+  display: flex;
+  flex-direction: column;
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  height: auto;
+  min-height: 0;
+  padding: 10px;
+  gap: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-column {
+  width: 100%;
+  min-width: 0;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-column-header {
+  min-height: 44px;
+  padding: 0 8px 0 10px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-column-title {
+  font-size: 15px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-column-header .frontmatter-kanban-column-new {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 8px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-cards {
+  max-height: none;
+  min-height: 44px;
+  overflow: visible;
+  padding: 8px;
+  gap: 8px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-card,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-card,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-day-card {
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-card-title,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-title {
+  font-size: 15px;
+  line-height: 1.22;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-card-title-line {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-card-compact-due {
+  width: fit-content;
+  max-width: 100%;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-card-details,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-day-card .frontmatter-kanban-card-details,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-details {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-kanban-card-stat.is-due,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due {
+  grid-column: auto;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-toolbar.is-compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-mode-switch {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-mode-switch button {
+  min-width: 0;
+  height: 32px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-nav {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-period-label {
+  padding: 0 8px;
+  font-size: var(--font-ui-small);
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-toolbar .frontmatter-timeline-today,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-toolbar .frontmatter-timeline-new {
+  min-width: 0;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  font-size: var(--font-ui-smaller);
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px;
+  gap: 10px;
+  overflow: auto;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-shell.is-sidebar-collapsed {
+  display: flex;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-main {
+  min-height: min(68vh, 620px);
+  overflow: auto;
+  border-radius: 8px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-week-grid {
+  width: max-content;
+  min-width: 100%;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-day-header {
+  min-width: var(--timeline-day-width, 132px);
+  padding: 0 8px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-task {
+  padding: 6px 5px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-grid-card {
+  padding: 7px 8px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-month {
+  width: max-content;
+  min-width: 100%;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-month-weekday,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-month-day {
+  min-width: 118px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-day-list {
+  padding: 10px;
+  gap: 10px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-day-cards {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar {
+  min-height: 0;
+  max-height: 46vh;
+  overflow: hidden;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar.is-collapsed {
+  max-height: none;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-header {
+  grid-template-columns: minmax(0, 1fr) 34px;
+  padding: 8px;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-details-toggle {
+  display: none;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-toggle {
+  grid-column: 2;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-header {
+  grid-template-columns: 1fr;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-toggle {
+  grid-column: 1;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-sidebar-body {
+  padding: 8px;
+  overflow-y: auto;
+}
+
+:is(.is-mobile, .is-phone) .frontmatter-timeline-resize-handle,
+:is(.is-mobile, .is-phone) .frontmatter-timeline-month-resize-handle {
+  opacity: 0.8;
+}
+
+@media (max-width: 720px) {
+  .frontmatter-kanban {
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .frontmatter-kanban-board {
+    display: flex;
+    flex-direction: column;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    height: auto;
+    min-height: 0;
+    padding: 10px;
+    gap: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .frontmatter-kanban-column {
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .frontmatter-kanban-column-header {
+    min-height: 44px;
+    padding: 0 8px 0 10px;
+  }
+
+  .frontmatter-kanban-column-title {
+    font-size: 15px;
+  }
+
+  .frontmatter-kanban-column-header .frontmatter-kanban-column-new {
+    min-width: 40px;
+    height: 32px;
+    padding: 0 8px;
+  }
+
+  .frontmatter-kanban-cards {
+    max-height: none;
+    min-height: 44px;
+    overflow: visible;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .frontmatter-kanban-card,
+  .frontmatter-timeline-sidebar-card,
+  .frontmatter-timeline-day-card {
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .frontmatter-kanban-card-title,
+  .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-title {
+    font-size: 15px;
+    line-height: 1.22;
+  }
+
+  .frontmatter-kanban-card-title-line {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .frontmatter-kanban-card-compact-due {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .frontmatter-kanban-card-details,
+  .frontmatter-timeline-day-card .frontmatter-kanban-card-details,
+  .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .frontmatter-kanban-card-stat.is-due,
+  .frontmatter-timeline-day-card .frontmatter-kanban-card-stat.is-due {
+    grid-column: auto;
+  }
+
+  .frontmatter-timeline-toolbar.is-compact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .frontmatter-timeline-mode-switch {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .frontmatter-timeline-mode-switch button {
+    min-width: 0;
+    height: 32px;
+  }
+
+  .frontmatter-timeline-nav {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .frontmatter-timeline-period-label {
+    padding: 0 8px;
+    font-size: var(--font-ui-small);
+  }
+
+  .frontmatter-timeline-toolbar .frontmatter-timeline-today,
+  .frontmatter-timeline-toolbar .frontmatter-timeline-weekends-toggle,
+  .frontmatter-timeline-toolbar .frontmatter-timeline-new {
+    min-width: 0;
+    width: 100%;
+    height: 34px;
+    padding: 0 8px;
+    font-size: var(--font-ui-smaller);
+  }
+
+  .frontmatter-timeline-shell,
+  .frontmatter-timeline-shell.is-sidebar-collapsed {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px;
+    gap: 10px;
+    overflow: auto;
+  }
+
+  .frontmatter-timeline-main {
+    min-height: min(68vh, 620px);
+    overflow: auto;
+    border-radius: 8px;
+  }
+
+  .frontmatter-timeline-week-grid {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .frontmatter-timeline-day-header {
+    min-width: var(--timeline-day-width, 132px);
+    padding: 0 8px;
+  }
+
+  .frontmatter-timeline-task {
+    padding: 6px 5px;
+  }
+
+  .frontmatter-timeline-grid-card {
+    padding: 7px 8px;
+  }
+
+  .frontmatter-timeline-month {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .frontmatter-timeline-month-weekday,
+  .frontmatter-timeline-month-day {
+    min-width: 118px;
+  }
+
+  .frontmatter-timeline-day-list {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .frontmatter-timeline-day-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .frontmatter-timeline-sidebar {
+    min-height: 0;
+    max-height: 46vh;
+    overflow: hidden;
+  }
+
+  .frontmatter-timeline-sidebar.is-collapsed {
+    max-height: none;
+  }
+
+  .frontmatter-timeline-sidebar-header {
+    grid-template-columns: minmax(0, 1fr) 34px;
+    padding: 8px;
+  }
+
+  .frontmatter-timeline-sidebar-details-toggle {
+    display: none;
+  }
+
+  .frontmatter-timeline-sidebar-toggle {
+    grid-column: 2;
+  }
+
+  .frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-header {
+    grid-template-columns: 1fr;
+  }
+
+  .frontmatter-timeline-sidebar.is-collapsed .frontmatter-timeline-sidebar-toggle {
+    grid-column: 1;
+  }
+
+  .frontmatter-timeline-sidebar-body {
+    padding: 8px;
+    overflow-y: auto;
+  }
+
+  .frontmatter-timeline-resize-handle,
+  .frontmatter-timeline-month-resize-handle {
+    opacity: 0.8;
+  }
+}

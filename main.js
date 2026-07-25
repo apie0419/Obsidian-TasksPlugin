@@ -1392,7 +1392,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     this.periodMode = "week";
     this.anchorDate = /* @__PURE__ */ new Date();
     this.collapsedSidebarGroups = /* @__PURE__ */ new Set();
-    this.isSidebarCollapsed = false;
+    this.isSidebarCollapsed = this.shouldStartSidebarCollapsed();
     this.sidebarStatusOrder = [];
     this.showSidebarDetails = true;
     this.createFileForView = async (baseFileName, frontmatterProcessor) => {
@@ -1405,6 +1405,9 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
   }
   onDataUpdated() {
     this.render();
+  }
+  shouldStartSidebarCollapsed() {
+    return document.body.classList.contains("is-mobile") || document.body.classList.contains("is-phone") || window.matchMedia("(max-width: 720px)").matches;
   }
   openCreateTaskModal(initialValues = {}) {
     new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();

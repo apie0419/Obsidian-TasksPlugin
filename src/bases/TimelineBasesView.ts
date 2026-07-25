@@ -105,7 +105,7 @@ export class TimelineBasesView extends BasesView {
     this.periodMode = "week";
     this.anchorDate = new Date();
     this.collapsedSidebarGroups = new Set();
-    this.isSidebarCollapsed = false;
+    this.isSidebarCollapsed = this.shouldStartSidebarCollapsed();
     this.sidebarStatusOrder = [];
     this.showSidebarDetails = true;
     this.createFileForView = async (baseFileName, frontmatterProcessor) => {
@@ -120,6 +120,12 @@ export class TimelineBasesView extends BasesView {
 
   onDataUpdated() {
     this.render();
+  }
+
+  shouldStartSidebarCollapsed() {
+    return document.body.classList.contains("is-mobile")
+      || document.body.classList.contains("is-phone")
+      || window.matchMedia("(max-width: 720px)").matches;
   }
 
   openCreateTaskModal(initialValues = {}) {
