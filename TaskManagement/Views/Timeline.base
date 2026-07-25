@@ -7,11 +7,8 @@ formulas:
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
   daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
 views:
-  - type: frontmatterKanban
-    name: Kanban Board
-    groupBy:
-      property: status
-      direction: ASC
+  - type: frontmatterTimeline
+    name: Timeline
     order:
       - status
       - project
@@ -29,27 +26,7 @@ views:
       - property: due
         direction: ASC
     options:
-      columnWidth: 380
-  - type: frontmatterTimeline
-    name: Timeline
-    order:
-      - status
-      - project
-      - feature
-      - priority
-      - formula.priorityWeight
-      - due
-      - work_start
-      - work_end
-      - completed
-      - file.name
-    sort:
-      - property: formula.daysUntilDue
-        direction: ASC
-      - property: formula.priorityWeight
-        direction: DESC
-    options:
       dayWidth: 150
       laneHeight: 118
       hideWeekends: false
-    hideWeekends: false
+    hideWeekends: true
