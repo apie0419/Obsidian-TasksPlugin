@@ -3,7 +3,7 @@
   "name": "TaskManagement",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "TaskManagement for Markdown task notes with Obsidian-readable frontmatter.",
+  "description": "Manage Markdown task notes with frontmatter-powered kanban and timeline views.",
   "author": "apie0419",
   "authorUrl": "https://github.com/apie0419",
   "isDesktopOnly": false

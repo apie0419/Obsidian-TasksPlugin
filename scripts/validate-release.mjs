@@ -49,6 +49,14 @@ if (manifest.id.includes("obsidian")) {
   fail('manifest.json id must not contain "obsidian".');
 }
 
+if (/\bobsidian\b/i.test(manifest.description)) {
+  fail('manifest.json description must not include the word "Obsidian".');
+}
+
+if (manifest.description.toLowerCase().startsWith(manifest.name.toLowerCase())) {
+  fail("manifest.json description should not start with the plugin name.");
+}
+
 if (packageJson.version !== manifest.version) {
   fail(`package.json version ${packageJson.version} does not match manifest.json version ${manifest.version}.`);
 }

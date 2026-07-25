@@ -2,7 +2,7 @@
   "name": "taskmanagement",
   "version": "1.0.0",
   "private": true,
-  "description": "TaskManagement for Markdown task notes with an Obsidian Kanban board.",
+  "description": "Manage Markdown task notes with frontmatter-powered kanban and timeline views.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
