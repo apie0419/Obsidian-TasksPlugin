@@ -1407,7 +1407,13 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     this.render();
   }
   shouldStartSidebarCollapsed() {
+    return this.isMobileLayout();
+  }
+  isMobileLayout() {
     return document.body.classList.contains("is-mobile") || document.body.classList.contains("is-phone") || window.matchMedia("(max-width: 720px)").matches;
+  }
+  shouldUseTimelineResizeHandles() {
+    return !this.isMobileLayout();
   }
   openCreateTaskModal(initialValues = {}) {
     new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
@@ -1653,8 +1659,10 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       holder.style.gridRow = String(index + 2);
       holder.style.setProperty("--kanban-column-accent", getPriorityAccent(item.task));
       this.renderTimelineCard(holder, item.task, "frontmatter-timeline-grid-card");
-      this.renderResizeHandle(holder, item, "start", grid, visibleDays);
-      this.renderResizeHandle(holder, item, "end", grid, visibleDays);
+      if (this.shouldUseTimelineResizeHandles()) {
+        this.renderResizeHandle(holder, item, "start", grid, visibleDays);
+        this.renderResizeHandle(holder, item, "end", grid, visibleDays);
+      }
     });
     if (!scheduled.length) {
       const empty = grid.createDiv({ cls: "frontmatter-timeline-empty", text: "No scheduled tasks in this period." });
@@ -1773,14 +1781,19 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     const calendar = panel.createDiv({ cls: "frontmatter-timeline-month" });
     const hideWeekends = this.getHideWeekends();
     const labels = hideWeekends ? ["Mon", "Tue", "Wed", "Thu", "Fri"] : WEEKDAY_LABELS2;
-    calendar.style.gridTemplateColumns = `repeat(${labels.length}, minmax(120px, 1fr))`;
+    const isMobileLayout = this.isMobileLayout();
+    if (isMobileLayout) {
+      panel.addClass("is-mobile-month");
+      calendar.addClass("is-mobile-month");
+    }
+    calendar.style.gridTemplateColumns = isMobileLayout ? `repeat(${labels.length}, minmax(0, 1fr))` : `repeat(${labels.length}, minmax(120px, 1fr))`;
     labels.forEach((label, index) => {
       const header = calendar.createDiv({ cls: "frontmatter-timeline-month-weekday", text: label });
       header.style.gridColumn = String(index + 1);
       header.style.gridRow = "1";
     });
     const weeks = this.getMonthWeeks(period.start, hideWeekends);
-    calendar.style.gridTemplateRows = `34px repeat(${weeks.length}, minmax(132px, 1fr))`;
+    calendar.style.gridTemplateRows = isMobileLayout ? `28px repeat(${weeks.length}, minmax(58px, 1fr))` : `34px repeat(${weeks.length}, minmax(132px, 1fr))`;
     this.registerDomEvent(calendar, "dragover", (event) => {
       const date = this.getMonthDateFromPoint(event.clientX, event.clientY);
       if (!date) return;
@@ -1893,7 +1906,8 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     item.style.setProperty("--kanban-column-accent", getPriorityAccent(task));
     item.style.gridColumn = `${placement.colStart} / ${placement.colEnd}`;
     item.style.gridRow = String(placement.weekIndex + 2);
-    item.style.marginTop = `${30 + placement.lane * 24}px`;
+    const isMobileLayout = this.isMobileLayout();
+    item.style.marginTop = isMobileLayout ? `${20 + placement.lane * 17}px` : `${30 + placement.lane * 24}px`;
     item.draggable = true;
     this.registerDomEvent(item, "dragstart", (event) => {
       if (!event.dataTransfer) return;
@@ -1907,12 +1921,16 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
         element.classList.remove("is-drop-target");
       });
     });
-    this.renderMonthResizeHandle(item, task, "start");
+    if (this.shouldUseTimelineResizeHandles()) {
+      this.renderMonthResizeHandle(item, task, "start");
+    }
     item.createSpan({ cls: "frontmatter-timeline-month-task-dot" });
     item.createSpan({ cls: "frontmatter-timeline-month-task-title", text: getTaskTitle(task) });
     const due = formatDateForInput(task.frontmatter.due);
     if (due) item.createSpan({ cls: "frontmatter-timeline-month-task-due", text: due.slice(5) });
-    this.renderMonthResizeHandle(item, task, "end");
+    if (this.shouldUseTimelineResizeHandles()) {
+      this.renderMonthResizeHandle(item, task, "end");
+    }
     this.registerDomEvent(item, "click", (event) => {
       if (this.suppressNextCardClick) return;
       if (event.detail > 1) return;
