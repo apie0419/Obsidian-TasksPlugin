@@ -1,12 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Tag helpers mutate Obsidian frontmatter records. */
-function normalizeTag(tag) {
+type FrontmatterLike = Record<string, unknown>;
+
+function normalizeTag(tag: unknown) {
   return String(tag || "").trim().replace(/^#/, "");
 }
 
-export function getFrontmatterTags(frontmatter) {
+export function getFrontmatterTags(frontmatter: FrontmatterLike | null | undefined) {
   const tags = frontmatter && frontmatter.tags;
   if (Array.isArray(tags)) {
-    return tags.map(normalizeTag).filter(Boolean);
+    return (tags as unknown[]).map(normalizeTag).filter(Boolean);
   }
   if (typeof tags === "string") {
     return tags.split(/[\s,]+/).map(normalizeTag).filter(Boolean);
@@ -14,7 +15,7 @@ export function getFrontmatterTags(frontmatter) {
   return [];
 }
 
-export function hasFrontmatterTag(frontmatter, tag) {
+export function hasFrontmatterTag(frontmatter: FrontmatterLike | null | undefined, tag: unknown) {
   const expected = normalizeTag(tag).toLowerCase();
   return getFrontmatterTags(frontmatter).some((item) => {
     const normalized = normalizeTag(item).toLowerCase();
@@ -22,17 +23,20 @@ export function hasFrontmatterTag(frontmatter, tag) {
   });
 }
 
-export function ensureFrontmatterTag(frontmatter, tag) {
+export function ensureFrontmatterTag(frontmatter: FrontmatterLike, tag: unknown) {
   const normalizedTag = normalizeTag(tag);
   if (!normalizedTag || hasFrontmatterTag(frontmatter, normalizedTag)) return;
 
-  if (Array.isArray(frontmatter.tags)) {
-    frontmatter.tags.push(normalizedTag);
+  const tags = frontmatter.tags;
+  if (Array.isArray(tags)) {
+    const nextTags = tags as unknown[];
+    nextTags.push(normalizedTag);
+    frontmatter.tags = nextTags;
     return;
   }
 
-  if (typeof frontmatter.tags === "string" && frontmatter.tags.trim()) {
-    frontmatter.tags = `${frontmatter.tags.trim()} ${normalizedTag}`;
+  if (typeof tags === "string" && tags.trim()) {
+    frontmatter.tags = `${tags.trim()} ${normalizedTag}`;
     return;
   }
 

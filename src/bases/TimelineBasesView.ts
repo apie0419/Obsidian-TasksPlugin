@@ -6,7 +6,7 @@ import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
 import { isDoneStatus, statusEquals } from "../status";
 import { getTaskTitle } from "../taskFields";
 import { formatDateForInput } from "../utils/date";
-import { formatReferenceLabel, openTaskMenu, renderTaskCard } from "./TaskCard";
+import { openTaskMenu, renderTaskCard } from "./TaskCard";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -1035,3 +1035,5 @@ export function buildTimelineBasesViewFactory(plugin): BasesViewFactory {
     return new TimelineBasesView(controller, containerEl, plugin);
   };
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */

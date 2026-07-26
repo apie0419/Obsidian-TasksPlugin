@@ -1,16 +1,17 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Text helpers accept dynamic settings and frontmatter values. */
-export function clone(value) {
-  return JSON.parse(JSON.stringify(value));
+import type { DropdownComponent } from "obsidian";
+
+export function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function sanitizeFileName(title) {
+export function sanitizeFileName(title: string) {
   return title
     .replace(/[\\/:*?"<>|#^[\]]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-export function normalizeFieldId(value) {
+export function normalizeFieldId(value: string) {
   return value
     .trim()
     .toLowerCase()
@@ -18,7 +19,7 @@ export function normalizeFieldId(value) {
     .replace(/^_+|_+$/g, "");
 }
 
-export function setDropdownOptions(dropdown, options) {
+export function setDropdownOptions(dropdown: DropdownComponent, options: Array<[string, string]>) {
   dropdown.selectEl.empty();
   options.forEach(([value, label]) => dropdown.addOption(value, label));
 }
