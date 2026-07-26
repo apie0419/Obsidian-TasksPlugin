@@ -389,11 +389,15 @@ export class TimelineBasesView extends BasesView {
     const panel = shell.createDiv({ cls: "frontmatter-timeline-main" });
     const grid = panel.createDiv({ cls: "frontmatter-timeline-grid frontmatter-timeline-week-grid" });
     const preview = grid.createDiv({ cls: "frontmatter-timeline-drop-preview" });
-    grid.style.setProperty("--timeline-day-width", `${dayWidth}px`);
-    grid.style.setProperty("--timeline-lane-height", `${laneHeight}px`);
-    grid.style.setProperty("--timeline-visible-days", String(visibleDays.length || 1));
-    grid.style.gridTemplateColumns = `repeat(${visibleDays.length}, minmax(var(--timeline-day-width), 1fr))`;
-    grid.style.gridTemplateRows = `64px repeat(${rowCount}, var(--timeline-lane-height)) minmax(0, 1fr)`;
+    grid.setCssProps({
+      "--timeline-day-width": `${dayWidth}px`,
+      "--timeline-lane-height": `${laneHeight}px`,
+      "--timeline-visible-days": String(visibleDays.length || 1)
+    });
+    grid.setCssStyles({
+      gridTemplateColumns: `repeat(${visibleDays.length}, minmax(var(--timeline-day-width), 1fr))`,
+      gridTemplateRows: `64px repeat(${rowCount}, var(--timeline-lane-height)) minmax(0, 1fr)`
+    });
 
     this.registerDomEvent(grid, "dragover", (event) => {
       if (!this.getDropDate(event, grid, visibleDays)) return;
@@ -406,41 +410,48 @@ export class TimelineBasesView extends BasesView {
       grid.removeClass("is-drag-over");
       preview.removeClass("is-visible");
     });
-    this.registerDomEvent(grid, "drop", async (event) => {
+    this.registerDomEvent(grid, "drop", (event) => {
       const dropDate = this.getDropDate(event, grid, visibleDays);
       if (!dropDate) return;
       event.preventDefault();
       grid.removeClass("is-drag-over");
       preview.removeClass("is-visible");
+      if (!event.dataTransfer) return;
       const path = event.dataTransfer.getData("text/plain");
       const file = this.plugin.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) return;
       const task = tasks.find((item) => item.file.path === file.path);
-      await this.scheduleTaskFromDrop(file, task, dropDate);
+      void this.scheduleTaskFromDrop(file, task, dropDate);
     });
 
     visibleDays.forEach((date, index) => {
       const header = grid.createDiv({ cls: "frontmatter-timeline-day-header" });
       if (sameDate(date, new Date())) header.addClass("is-today");
       if (date.getDay() === 0 || date.getDay() === 6) header.addClass("is-weekend");
-      header.style.gridColumn = String(index + 1);
-      header.style.gridRow = "1";
+      header.setCssStyles({
+        gridColumn: String(index + 1),
+        gridRow: "1"
+      });
       header.createDiv({ cls: "frontmatter-timeline-day-number", text: `${date.getMonth() + 1}/${date.getDate()}` });
       header.createDiv({ cls: "frontmatter-timeline-weekday", text: WEEKDAY_LABELS[date.getDay()] });
 
       const dropColumn = grid.createDiv({ cls: "frontmatter-timeline-drop-column" });
       if (date.getDay() === 0 || date.getDay() === 6) dropColumn.addClass("is-weekend");
-      dropColumn.style.gridColumn = String(index + 1);
-      dropColumn.style.gridRow = "2 / -1";
+      dropColumn.setCssStyles({
+        gridColumn: String(index + 1),
+        gridRow: "2 / -1"
+      });
     });
 
     scheduled.forEach((item, index) => {
       const columns = this.getGridColumnsForRange(item.range, visibleDays);
       if (!columns) return;
       const holder = grid.createDiv({ cls: "frontmatter-timeline-task" });
-      holder.style.gridColumn = `${columns.start} / ${columns.end}`;
-      holder.style.gridRow = String(index + 2);
-      holder.style.setProperty("--kanban-column-accent", getPriorityAccent(item.task));
+      holder.setCssProps({ "--kanban-column-accent": getPriorityAccent(item.task) });
+      holder.setCssStyles({
+        gridColumn: `${columns.start} / ${columns.end}`,
+        gridRow: String(index + 2)
+      });
       this.renderTimelineCard(holder, item.task, "frontmatter-timeline-grid-card");
       if (this.shouldUseTimelineResizeHandles()) {
         this.renderResizeHandle(holder, item, "start", grid, visibleDays);
@@ -450,8 +461,10 @@ export class TimelineBasesView extends BasesView {
 
     if (!scheduled.length) {
       const empty = grid.createDiv({ cls: "frontmatter-timeline-empty", text: "No scheduled tasks in this period." });
-      empty.style.gridColumn = `1 / span ${Math.max(visibleDays.length, 1)}`;
-      empty.style.gridRow = "2";
+      empty.setCssStyles({
+        gridColumn: `1 / span ${Math.max(visibleDays.length, 1)}`,
+        gridRow: "2"
+      });
     }
   }
 
@@ -471,8 +484,10 @@ export class TimelineBasesView extends BasesView {
       preview.removeClass("is-visible");
       return;
     }
-    preview.style.gridColumn = `${columns.start} / ${columns.end}`;
-    preview.style.gridRow = `2 / span ${rowCount}`;
+    preview.setCssStyles({
+      gridColumn: `${columns.start} / ${columns.end}`,
+      gridRow: `2 / span ${rowCount}`
+    });
     preview.addClass("is-visible");
   }
 
@@ -529,17 +544,19 @@ export class TimelineBasesView extends BasesView {
           state.nextEnd = date >= state.nextStart ? date : state.nextStart;
         }
         const columns = this.getGridColumnsForRange({ start: state.nextStart, end: state.nextEnd }, visibleDays);
-        if (columns) holder.style.gridColumn = `${columns.start} / ${columns.end}`;
+        if (columns) holder.setCssStyles({ gridColumn: `${columns.start} / ${columns.end}` });
       };
 
-      const onUp = async () => {
+      const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         holder.removeClass("is-resizing");
-        await this.plugin.updateTaskWorkRange(item.task.file, formatDateOnly(state.nextStart), formatDateOnly(state.nextEnd));
-        window.setTimeout(() => {
-          this.suppressNextCardClick = false;
-        }, 80);
+        void this.plugin.updateTaskWorkRange(item.task.file, formatDateOnly(state.nextStart), formatDateOnly(state.nextEnd))
+          .finally(() => {
+            window.setTimeout(() => {
+              this.suppressNextCardClick = false;
+            }, 80);
+          });
       };
 
       window.addEventListener("pointermove", onMove);
@@ -578,20 +595,26 @@ export class TimelineBasesView extends BasesView {
       panel.addClass("is-mobile-month");
       calendar.addClass("is-mobile-month");
     }
-    calendar.style.gridTemplateColumns = isMobileLayout
-      ? `repeat(${labels.length}, minmax(0, 1fr))`
-      : `repeat(${labels.length}, minmax(120px, 1fr))`;
+    calendar.setCssStyles({
+      gridTemplateColumns: isMobileLayout
+        ? `repeat(${labels.length}, minmax(0, 1fr))`
+        : `repeat(${labels.length}, minmax(120px, 1fr))`
+    });
 
     labels.forEach((label, index) => {
       const header = calendar.createDiv({ cls: "frontmatter-timeline-month-weekday", text: label });
-      header.style.gridColumn = String(index + 1);
-      header.style.gridRow = "1";
+      header.setCssStyles({
+        gridColumn: String(index + 1),
+        gridRow: "1"
+      });
     });
 
     const weeks = this.getMonthWeeks(period.start, hideWeekends);
-    calendar.style.gridTemplateRows = isMobileLayout
-      ? `28px repeat(${weeks.length}, minmax(58px, 1fr))`
-      : `34px repeat(${weeks.length}, minmax(132px, 1fr))`;
+    calendar.setCssStyles({
+      gridTemplateRows: isMobileLayout
+        ? `28px repeat(${weeks.length}, minmax(58px, 1fr))`
+        : `34px repeat(${weeks.length}, minmax(132px, 1fr))`
+    });
     this.registerDomEvent(calendar, "dragover", (event) => {
       const date = this.getMonthDateFromPoint(event.clientX, event.clientY);
       if (!date) return;
@@ -602,22 +625,25 @@ export class TimelineBasesView extends BasesView {
       if (event.relatedTarget && calendar.contains(event.relatedTarget)) return;
       this.clearMonthDropTargets();
     });
-    this.registerDomEvent(calendar, "drop", async (event) => {
+    this.registerDomEvent(calendar, "drop", (event) => {
       const date = this.getMonthDateFromPoint(event.clientX, event.clientY);
       if (!date) return;
       event.preventDefault();
       this.clearMonthDropTargets();
+      if (!event.dataTransfer) return;
       const path = event.dataTransfer.getData("text/plain");
       const file = this.plugin.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) return;
       const task = tasks.find((item) => item.file.path === file.path);
-      await this.scheduleTaskFromDrop(file, task, date);
+      void this.scheduleTaskFromDrop(file, task, date);
     });
     weeks.forEach((week, weekIndex) => {
       week.forEach((date, dayIndex) => {
         const cell = calendar.createDiv({ cls: "frontmatter-timeline-month-day" });
-        cell.style.gridColumn = String(dayIndex + 1);
-        cell.style.gridRow = String(weekIndex + 2);
+        cell.setCssStyles({
+          gridColumn: String(dayIndex + 1),
+          gridRow: String(weekIndex + 2)
+        });
         if (!date) {
           cell.addClass("is-empty");
           return;
@@ -634,15 +660,16 @@ export class TimelineBasesView extends BasesView {
           if (event.relatedTarget && cell.contains(event.relatedTarget)) return;
           cell.removeClass("is-drop-target");
         });
-        this.registerDomEvent(cell, "drop", async (event) => {
+        this.registerDomEvent(cell, "drop", (event) => {
           event.preventDefault();
           event.stopPropagation();
           cell.removeClass("is-drop-target");
+          if (!event.dataTransfer) return;
           const path = event.dataTransfer.getData("text/plain");
           const file = this.plugin.app.vault.getAbstractFileByPath(path);
           if (!(file instanceof TFile)) return;
           const task = tasks.find((item) => item.file.path === file.path);
-          await this.scheduleTaskFromDrop(file, task, date);
+          void this.scheduleTaskFromDrop(file, task, date);
         });
         cell.createDiv({ cls: "frontmatter-timeline-month-date", text: String(date.getDate()) });
       });
@@ -706,13 +733,15 @@ export class TimelineBasesView extends BasesView {
 
   renderMonthTask(calendar, task, placement) {
     const item = calendar.createDiv({ cls: `frontmatter-timeline-month-task ${isDoneStatus(task.frontmatter.status) ? "is-done" : ""}` });
-    item.style.setProperty("--kanban-column-accent", getPriorityAccent(task));
-    item.style.gridColumn = `${placement.colStart} / ${placement.colEnd}`;
-    item.style.gridRow = String(placement.weekIndex + 2);
     const isMobileLayout = this.isMobileLayout();
-    item.style.marginTop = isMobileLayout
-      ? `${20 + placement.lane * 17}px`
-      : `${30 + placement.lane * 24}px`;
+    item.setCssProps({ "--kanban-column-accent": getPriorityAccent(task) });
+    item.setCssStyles({
+      gridColumn: `${placement.colStart} / ${placement.colEnd}`,
+      gridRow: String(placement.weekIndex + 2),
+      marginTop: isMobileLayout
+        ? `${20 + placement.lane * 17}px`
+        : `${30 + placement.lane * 24}px`
+    });
     item.draggable = true;
     this.registerDomEvent(item, "dragstart", (event) => {
       if (!event.dataTransfer) return;
@@ -781,17 +810,19 @@ export class TimelineBasesView extends BasesView {
         else state.nextEnd = date >= state.nextStart ? date : state.nextStart;
       };
 
-      const onUp = async () => {
+      const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         item.removeClass("is-resizing");
         this.containerEl.querySelectorAll(".frontmatter-timeline-month-day.is-drop-target").forEach((element) => {
           element.classList.remove("is-drop-target");
         });
-        await this.plugin.updateTaskWorkRange(task.file, formatDateOnly(state.nextStart), formatDateOnly(state.nextEnd));
-        window.setTimeout(() => {
-          this.suppressNextCardClick = false;
-        }, 80);
+        void this.plugin.updateTaskWorkRange(task.file, formatDateOnly(state.nextStart), formatDateOnly(state.nextEnd))
+          .finally(() => {
+            window.setTimeout(() => {
+              this.suppressNextCardClick = false;
+            }, 80);
+          });
       };
 
       window.addEventListener("pointermove", onMove);
@@ -887,7 +918,7 @@ export class TimelineBasesView extends BasesView {
       if (!groupTasks.length) continue;
 
       const section = body.createDiv({ cls: "frontmatter-timeline-sidebar-section is-status-group" });
-      section.style.setProperty("--timeline-section-accent", group.accent);
+      section.setCssProps({ "--timeline-section-accent": group.accent });
       if (this.collapsedSidebarGroups.has(group.key)) section.addClass("is-collapsed");
       const sectionTitle = section.createDiv({ cls: "frontmatter-timeline-sidebar-section-title" });
       sectionTitle.setAttr("role", "button");

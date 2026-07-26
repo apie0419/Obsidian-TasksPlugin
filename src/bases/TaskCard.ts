@@ -74,7 +74,7 @@ export function renderTaskCard(host, cards, task, options = {}) {
   const doneClass = isDoneStatus(task.frontmatter.status) ? "is-done" : "";
   const extraClass = options.extraClass || "";
   const card = cards.createDiv({ cls: `frontmatter-kanban-card ${priorityClass} ${doneClass} ${extraClass}`.trim() });
-  if (options.accent) card.style.setProperty("--kanban-column-accent", options.accent);
+  if (options.accent) card.setCssProps({ "--kanban-column-accent": options.accent });
   card.draggable = options.draggable !== false;
 
   if (card.draggable) {
@@ -220,7 +220,7 @@ export function renderTodoProgress(host, card, task) {
 
       const progress = todo.createDiv({ cls: "frontmatter-kanban-card-todo-progress" });
       const fill = progress.createDiv({ cls: "frontmatter-kanban-card-todo-progress-fill" });
-      fill.style.width = `${Math.round((stats.completed / stats.total) * 100)}%`;
+      fill.setCssStyles({ width: `${Math.round((stats.completed / stats.total) * 100)}%` });
       todo.createSpan({
         cls: "frontmatter-kanban-card-todo-count",
         text: `${stats.completed}/${stats.total}`

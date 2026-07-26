@@ -110,7 +110,7 @@ export class KanbanBasesView extends BasesView {
     this.containerEl.addClass("frontmatter-kanban-bases");
 
     const board = this.containerEl.createDiv({ cls: "frontmatter-kanban-board" });
-    board.style.setProperty("--kanban-column-width", `${this.getColumnWidth()}px`);
+    board.setCssProps({ "--kanban-column-width": `${this.getColumnWidth()}px` });
     const groups = this.getGroups();
 
     for (let index = 0; index < groups.length; index += 1) {
@@ -200,7 +200,7 @@ export class KanbanBasesView extends BasesView {
   renderColumn(board, status, entries, columnIndex) {
     const column = board.createDiv({ cls: "frontmatter-kanban-column" });
     column.dataset.status = status;
-    column.style.setProperty("--kanban-column-accent", getStatusAccent(status, COLUMN_ACCENTS[columnIndex % COLUMN_ACCENTS.length]));
+    column.setCssProps({ "--kanban-column-accent": getStatusAccent(status, COLUMN_ACCENTS[columnIndex % COLUMN_ACCENTS.length]) });
 
     const header = column.createDiv({ cls: "frontmatter-kanban-column-header" });
     const title = header.createDiv({ cls: "frontmatter-kanban-column-title" });

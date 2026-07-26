@@ -126,6 +126,7 @@ class DatePickerModal extends Modal {
   }
 
   onOpen() {
+    this.modalEl.addClass("frontmatter-kanban-date-picker-shell");
     this.render();
   }
 
@@ -415,7 +416,7 @@ export class EditTaskModal extends Modal {
     new ButtonComponent(footer)
       .setButtonText("Delete")
       .setIcon("trash-2")
-      .setWarning()
+      .setDestructive()
       .setClass("frontmatter-kanban-delete-button")
       .onClick(async () => {
         const deleted = await this.plugin.deleteTask(this.task.file);

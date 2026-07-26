@@ -2,7 +2,7 @@
   "id": "frontmatter-kanban-board",
   "name": "TaskManagement",
   "version": "1.0.0",
-  "minAppVersion": "1.5.0",
+  "minAppVersion": "1.13.1",
   "description": "Manage Markdown task notes with frontmatter-powered kanban and timeline views.",
   "author": "apie0419",
   "authorUrl": "https://github.com/apie0419",

@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, normalizePath, stringifyYaml } from "obsidian";
+import { ButtonComponent, Modal, Notice, Plugin, Setting, TFile, normalizePath, stringifyYaml } from "obsidian";
 import {
   BASES_KANBAN_VIEW_TYPE,
   BASES_TIMELINE_VIEW_TYPE,
@@ -25,34 +25,79 @@ import { formatTimestampForFileName, nowIso, toDate } from "./utils/date";
 import { ensureFrontmatterTag, hasFrontmatterTag } from "./utils/tags";
 import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
 
+class ConfirmDeleteTaskModal extends Modal {
+  constructor(app, taskName) {
+    super(app);
+    this.taskName = taskName;
+    this.resolve = () => {};
+  }
+
+  openAndAwait() {
+    return new Promise((resolve) => {
+      this.resolve = resolve;
+      this.open();
+    });
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    new Setting(contentEl)
+      .setName("Delete task?")
+      .setDesc(`Move "${this.taskName}" to trash.`)
+      .setHeading();
+
+    const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
+    new ButtonComponent(footer)
+      .setButtonText("Cancel")
+      .onClick(() => {
+        this.resolve(false);
+        this.close();
+      });
+    new ButtonComponent(footer)
+      .setButtonText("Delete")
+      .setDestructive()
+      .setCta()
+      .onClick(() => {
+        this.resolve(true);
+        this.close();
+      });
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
 export default class FrontmatterKanbanPlugin extends Plugin {
   async onload() {
-    await this.loadStyles();
     await this.loadSettings();
 
     this.registerBasesIntegration();
 
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
-      this.activateView();
+      void this.activateView();
     });
 
     this.addCommand({
       id: "open-taskmanagement-kanban-board",
       name: "Open Kanban board",
-      callback: () => this.activateView()
+      callback: () => {
+        void this.activateView();
+      }
     });
 
     this.addCommand({
       id: "open-taskmanagement-timeline",
       name: "Open Timeline",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "y" }],
-      callback: () => this.activateTimelineView()
+      callback: () => {
+        void this.activateTimelineView();
+      }
     });
 
     this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
-      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "t" }],
       callback: () => new CreateTaskModal(this.app, this).open()
     });
 
@@ -74,25 +119,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.ensureKanbanBaseFile();
     await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
-    this.syncDerivedFields();
-    this.checkNotifications();
-  }
-
-  async loadStyles() {
-    const styleId = `${this.manifest.id}-managed-styles`;
-    document.getElementById(styleId)?.remove();
-
-    const stylePath = normalizePath(`${this.manifest.dir || ""}/styles.css`);
-    try {
-      const css = await this.app.vault.adapter.read(stylePath);
-      const styleEl = document.createElement("style");
-      styleEl.id = styleId;
-      styleEl.textContent = css;
-      document.head.appendChild(styleEl);
-      this.register(() => styleEl.remove());
-    } catch (error) {
-      console.warn(`Failed to load ${stylePath}`, error);
-    }
+    void this.syncDerivedFields();
+    void this.checkNotifications();
   }
 
   async loadSettings() {
@@ -254,7 +282,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     if (nextContents.includes("kanban_task")) {
       nextContents = nextContents.replace(
-        /filters:\r?\n  or:\r?\n    - note\["kanban_task"\] == true\r?\n    - note\.status && note\.status != ""/,
+        /filters:\r?\n {2}or:\r?\n {4}- note\["kanban_task"\] == true\r?\n {4}- note\.status && note\.status != ""/,
         `filters:\n  and:\n    - note.tags.contains("${TASK_TAG}")`
       );
     }
@@ -793,14 +821,10 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   async deleteTask(file) {
-    const confirmed = window.confirm(`Delete "${file.basename}"?`);
+    const confirmed = await new ConfirmDeleteTaskModal(this.app, file.basename).openAndAwait();
     if (!confirmed) return false;
 
-    try {
-      await this.app.vault.trash(file, true);
-    } catch (error) {
-      await this.app.vault.trash(file, false);
-    }
+    await this.app.fileManager.trashFile(file);
 
     new Notice("Task deleted.");
     this.refreshViews();

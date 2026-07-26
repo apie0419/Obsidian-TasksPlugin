@@ -1,4 +1,5 @@
 import { ButtonComponent, DropdownComponent, Notice, PluginSettingTab, Setting, TextComponent } from "obsidian";
+import type { SettingDefinitionItem } from "obsidian";
 import { FIELD_TYPES } from "../constants";
 import { cleanStatus, statusEquals } from "../status";
 import { getAllFieldDefinitions } from "../taskFields";
@@ -10,12 +11,36 @@ export class KanbanSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [
+      {
+        name: "TaskManagement",
+        desc: "Task form, statuses, and custom field settings",
+        aliases: [
+          "Task form",
+          "Statuses",
+          "Custom fields",
+          "Kanban board"
+        ],
+        render: (setting) => {
+          this.renderSettings(setting.settingEl);
+        }
+      }
+    ];
+  }
+
   display() {
     const { containerEl } = this;
+    this.renderSettings(containerEl);
+  }
+
+  renderSettings(containerEl) {
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
 
-    containerEl.createEl("h2", { text: "TaskManagement" });
+    new Setting(containerEl)
+      .setName("TaskManagement")
+      .setHeading();
 
     this.renderCreateFormFields(containerEl);
     this.renderStatuses(containerEl);
@@ -106,7 +131,9 @@ export class KanbanSettingTab extends PluginSettingTab {
       this.renderCustomFieldRow(list, field);
     }
 
-    section.createEl("h4", { text: "Add field" });
+    new Setting(section)
+      .setName("Add field")
+      .setHeading();
     const add = section.createDiv({ cls: "frontmatter-kanban-custom-field-editor" });
     const name = new TextComponent(add).setPlaceholder("Name");
     const type = new DropdownComponent(add);
