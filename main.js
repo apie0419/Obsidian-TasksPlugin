@@ -2354,11 +2354,11 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       const input2 = new import_obsidian5.TextComponent(row).setValue(status);
       new import_obsidian5.ButtonComponent(row).setButtonText("Save").onClick(async () => {
         const renamed = await this.plugin.renameStatus(status, input2.getValue());
-        if (renamed) this.display();
+        if (renamed) this.update();
       });
       new import_obsidian5.ButtonComponent(row).setButtonText("Remove").onClick(async () => {
         const removed = await this.plugin.removeStatus(status);
-        if (removed) this.display();
+        if (removed) this.update();
       });
     }
     const addRow = containerEl.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
@@ -2375,7 +2375,7 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       }
       this.plugin.settings.statuses.push(status);
       await this.plugin.saveSettings();
-      this.display();
+      this.update();
     });
   }
   renderCreateFormFields(container) {
@@ -2435,7 +2435,7 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
         showInCreate: showInCreateInput.checked
       });
       await this.plugin.saveSettings();
-      this.display();
+      this.update();
     });
   }
   renderCustomFieldRow(container, field) {
@@ -2464,12 +2464,12 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       field.defaultValue = defaultValue.getValue();
       field.showInCreate = showInCreateInput.checked;
       await this.plugin.saveSettings();
-      this.display();
+      this.update();
     });
     new import_obsidian5.ButtonComponent(row).setButtonText("Remove").onClick(async () => {
       this.plugin.settings.customFields = this.plugin.settings.customFields.filter((item) => item.id !== field.id);
       await this.plugin.saveSettings();
-      this.display();
+      this.update();
     });
   }
 };
@@ -2578,7 +2578,9 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     this.registerEvent(
       this.app.vault.on("delete", () => this.refreshViews())
     );
-    this.registerInterval(window.setInterval(() => this.checkNotifications(), 60 * 1e3));
+    this.registerInterval(window.setInterval(() => {
+      void this.checkNotifications();
+    }, 60 * 1e3));
     await this.ensureStorageFolders();
     await this.ensureKanbanBaseFile();
     await this.ensureTimelineBaseFile();
