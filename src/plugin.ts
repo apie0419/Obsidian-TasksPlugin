@@ -164,20 +164,20 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const file = await this.ensureKanbanBaseFile();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   async activateTimelineView() {
     const file = await this.ensureTimelineBaseFile();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   async openTaskFile(file) {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file, { active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
 
   registerBasesIntegration() {
@@ -1050,3 +1050,5 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
   }
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
