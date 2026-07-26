@@ -2323,14 +2323,10 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       }
     ];
   }
-  display() {
-    const { containerEl } = this;
-    this.renderSettings(containerEl);
-  }
   renderSettings(containerEl) {
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
-    new import_obsidian5.Setting(containerEl).setName("TaskManagement").setHeading();
+    new import_obsidian5.Setting(containerEl).setName("Task settings").setHeading();
     this.renderCreateFormFields(containerEl);
     this.renderStatuses(containerEl);
     this.renderCustomFields(containerEl);
@@ -2498,12 +2494,15 @@ function hasFrontmatterTag(frontmatter, tag) {
 function ensureFrontmatterTag(frontmatter, tag) {
   const normalizedTag = normalizeTag(tag);
   if (!normalizedTag || hasFrontmatterTag(frontmatter, normalizedTag)) return;
-  if (Array.isArray(frontmatter.tags)) {
-    frontmatter.tags.push(normalizedTag);
+  const tags = frontmatter.tags;
+  if (Array.isArray(tags)) {
+    const nextTags = tags;
+    nextTags.push(normalizedTag);
+    frontmatter.tags = nextTags;
     return;
   }
-  if (typeof frontmatter.tags === "string" && frontmatter.tags.trim()) {
-    frontmatter.tags = `${frontmatter.tags.trim()} ${normalizedTag}`;
+  if (typeof tags === "string" && tags.trim()) {
+    frontmatter.tags = `${tags.trim()} ${normalizedTag}`;
     return;
   }
   frontmatter.tags = [normalizedTag];
@@ -2625,18 +2624,18 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     const file = await this.ensureKanbanBaseFile();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
   async activateTimelineView() {
     const file = await this.ensureTimelineBaseFile();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
   async openTaskFile(file) {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file, { active: true });
-    this.app.workspace.revealLeaf(leaf);
+    await this.app.workspace.revealLeaf(leaf);
   }
   registerBasesIntegration() {
     if (typeof this.registerBasesView !== "function") {
