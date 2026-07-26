@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return -- Status values may come from user-authored frontmatter. */
 import { DONE_STATUS } from "./constants";
 
 export function cleanStatus(value) {

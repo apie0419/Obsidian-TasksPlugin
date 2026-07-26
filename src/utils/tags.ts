@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Tag helpers mutate Obsidian frontmatter records. */
 function normalizeTag(tag) {
   return String(tag || "").trim().replace(/^#/, "");
 }

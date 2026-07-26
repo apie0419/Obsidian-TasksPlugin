@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Modal values are built dynamically from frontmatter and custom fields. */
 import { ButtonComponent, DropdownComponent, Modal, Notice, Setting, SuggestModal } from "obsidian";
 import { PRIORITIES } from "../constants";
 import { getTaskTitle } from "../taskFields";

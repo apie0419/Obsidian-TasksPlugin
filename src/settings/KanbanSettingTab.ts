@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Settings rows are generated from custom user-defined fields. */
 import { ButtonComponent, DropdownComponent, Notice, PluginSettingTab, Setting, TextComponent } from "obsidian";
 import type { SettingDefinitionItem } from "obsidian";
 import { FIELD_TYPES } from "../constants";
@@ -70,14 +71,14 @@ export class KanbanSettingTab extends PluginSettingTab {
         .setButtonText("Save")
         .onClick(async () => {
           const renamed = await this.plugin.renameStatus(status, input.getValue());
-          if (renamed) this.display();
+          if (renamed) this.update();
         });
 
       new ButtonComponent(row)
         .setButtonText("Remove")
         .onClick(async () => {
           const removed = await this.plugin.removeStatus(status);
-          if (removed) this.display();
+          if (removed) this.update();
         });
     }
 
@@ -97,7 +98,7 @@ export class KanbanSettingTab extends PluginSettingTab {
         }
         this.plugin.settings.statuses.push(status);
         await this.plugin.saveSettings();
-        this.display();
+        this.update();
       });
   }
 
@@ -169,7 +170,7 @@ export class KanbanSettingTab extends PluginSettingTab {
           showInCreate: showInCreateInput.checked
         });
         await this.plugin.saveSettings();
-        this.display();
+        this.update();
       });
   }
 
@@ -206,7 +207,7 @@ export class KanbanSettingTab extends PluginSettingTab {
         field.defaultValue = defaultValue.getValue();
         field.showInCreate = showInCreateInput.checked;
         await this.plugin.saveSettings();
-        this.display();
+        this.update();
       });
 
     new ButtonComponent(row)
@@ -214,7 +215,7 @@ export class KanbanSettingTab extends PluginSettingTab {
       .onClick(async () => {
         this.plugin.settings.customFields = this.plugin.settings.customFields.filter((item) => item.id !== field.id);
         await this.plugin.saveSettings();
-        this.display();
+        this.update();
       });
   }
 }

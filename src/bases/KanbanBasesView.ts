@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Bases entries and frontmatter are runtime-shaped Obsidian data. */
 import { BasesView, TFile, setIcon } from "obsidian";
 import type { BasesViewFactory } from "obsidian";
 import { BASES_KANBAN_VIEW_TYPE } from "../constants";
