@@ -585,8 +585,6 @@ export class EditTaskModal extends Modal {
   }
 }
 
-/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
-
 export class CreateTaskModal extends Modal {
   constructor(app, plugin, initialValues = {}) {
     super(app);
@@ -821,3 +819,5 @@ export class CreateTaskModal extends Modal {
     this.contentEl.empty();
   }
 }
+
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Re-enable unsafe checks after building dynamic task modals. */

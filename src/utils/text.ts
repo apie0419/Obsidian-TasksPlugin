@@ -21,5 +21,7 @@ export function normalizeFieldId(value: string) {
 
 export function setDropdownOptions(dropdown: DropdownComponent, options: Array<[string, string]>) {
   dropdown.selectEl.empty();
-  options.forEach(([value, label]) => dropdown.addOption(value, label));
+  options.forEach(([value, label]) => {
+    dropdown.addOption(value, label);
+  });
 }

@@ -35,7 +35,7 @@ export class KanbanSettingTab extends PluginSettingTab {
     containerEl.addClass("frontmatter-kanban-settings");
 
     new Setting(containerEl)
-      .setName("Task settings")
+      .setName("Task preferences")
       .setHeading();
 
     this.renderCreateFormFields(containerEl);
@@ -215,4 +215,4 @@ export class KanbanSettingTab extends PluginSettingTab {
   }
 }
 
-/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
+/* eslint-enable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Re-enable unsafe checks after rendering dynamic settings rows. */

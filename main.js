@@ -2326,7 +2326,7 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
   renderSettings(containerEl) {
     containerEl.empty();
     containerEl.addClass("frontmatter-kanban-settings");
-    new import_obsidian5.Setting(containerEl).setName("Task settings").setHeading();
+    new import_obsidian5.Setting(containerEl).setName("Task preferences").setHeading();
     this.renderCreateFormFields(containerEl);
     this.renderStatuses(containerEl);
     this.renderCustomFields(containerEl);
