@@ -12,6 +12,19 @@ export class KanbanSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  display() {
+    this.renderSettings(this.containerEl);
+  }
+
+  refreshSettings() {
+    if (typeof this.update === "function") {
+      this.update();
+      return;
+    }
+
+    this.display();
+  }
+
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [
       {
@@ -66,14 +79,14 @@ export class KanbanSettingTab extends PluginSettingTab {
         .setButtonText("Save")
         .onClick(async () => {
           const renamed = await this.plugin.renameStatus(status, input.getValue());
-          if (renamed) this.update();
+          if (renamed) this.refreshSettings();
         });
 
       new ButtonComponent(row)
         .setButtonText("Remove")
         .onClick(async () => {
           const removed = await this.plugin.removeStatus(status);
-          if (removed) this.update();
+          if (removed) this.refreshSettings();
         });
     }
 
@@ -93,7 +106,7 @@ export class KanbanSettingTab extends PluginSettingTab {
         }
         this.plugin.settings.statuses.push(status);
         await this.plugin.saveSettings();
-        this.update();
+        this.refreshSettings();
       });
   }
 
@@ -165,7 +178,7 @@ export class KanbanSettingTab extends PluginSettingTab {
           showInCreate: showInCreateInput.checked
         });
         await this.plugin.saveSettings();
-        this.update();
+        this.refreshSettings();
       });
   }
 
@@ -202,7 +215,7 @@ export class KanbanSettingTab extends PluginSettingTab {
         field.defaultValue = defaultValue.getValue();
         field.showInCreate = showInCreateInput.checked;
         await this.plugin.saveSettings();
-        this.update();
+        this.refreshSettings();
       });
 
     new ButtonComponent(row)
@@ -210,7 +223,7 @@ export class KanbanSettingTab extends PluginSettingTab {
       .onClick(async () => {
         this.plugin.settings.customFields = this.plugin.settings.customFields.filter((item) => item.id !== field.id);
         await this.plugin.saveSettings();
-        this.update();
+        this.refreshSettings();
       });
   }
 }

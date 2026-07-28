@@ -201,6 +201,15 @@ function getAllFieldDefinitions(plugin) {
 }
 
 // src/modals/TaskModals.ts
+function markButtonDestructive(button) {
+  if (typeof button.setDestructive === "function") {
+    return button.setDestructive();
+  }
+  if (typeof button.setWarning === "function") {
+    return button.setWarning();
+  }
+  return button;
+}
 function parseCheckboxValue(value) {
   if (value === true || value === false) return value;
   const normalized = String(value || "").trim().toLowerCase();
@@ -549,7 +558,8 @@ var EditTaskModal = class extends import_obsidian.Modal {
       this.renderCustomField(contentEl, field);
     }
     const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
-    new import_obsidian.ButtonComponent(footer).setButtonText("Delete").setIcon("trash-2").setDestructive().setClass("frontmatter-kanban-delete-button").onClick(async () => {
+    const deleteButton = new import_obsidian.ButtonComponent(footer).setButtonText("Delete").setIcon("trash-2").setClass("frontmatter-kanban-delete-button");
+    markButtonDestructive(deleteButton).onClick(async () => {
       const deleted = await this.plugin.deleteTask(this.task.file);
       if (deleted) this.close();
     });
@@ -2306,6 +2316,16 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
   }
+  display() {
+    this.renderSettings(this.containerEl);
+  }
+  refreshSettings() {
+    if (typeof this.update === "function") {
+      this.update();
+      return;
+    }
+    this.display();
+  }
   getSettingDefinitions() {
     return [
       {
@@ -2350,11 +2370,11 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       const input2 = new import_obsidian5.TextComponent(row).setValue(status);
       new import_obsidian5.ButtonComponent(row).setButtonText("Save").onClick(async () => {
         const renamed = await this.plugin.renameStatus(status, input2.getValue());
-        if (renamed) this.update();
+        if (renamed) this.refreshSettings();
       });
       new import_obsidian5.ButtonComponent(row).setButtonText("Remove").onClick(async () => {
         const removed = await this.plugin.removeStatus(status);
-        if (removed) this.update();
+        if (removed) this.refreshSettings();
       });
     }
     const addRow = containerEl.createDiv({ cls: "frontmatter-kanban-settings-add-row" });
@@ -2371,7 +2391,7 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       }
       this.plugin.settings.statuses.push(status);
       await this.plugin.saveSettings();
-      this.update();
+      this.refreshSettings();
     });
   }
   renderCreateFormFields(container) {
@@ -2431,7 +2451,7 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
         showInCreate: showInCreateInput.checked
       });
       await this.plugin.saveSettings();
-      this.update();
+      this.refreshSettings();
     });
   }
   renderCustomFieldRow(container, field) {
@@ -2460,12 +2480,12 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
       field.defaultValue = defaultValue.getValue();
       field.showInCreate = showInCreateInput.checked;
       await this.plugin.saveSettings();
-      this.update();
+      this.refreshSettings();
     });
     new import_obsidian5.ButtonComponent(row).setButtonText("Remove").onClick(async () => {
       this.plugin.settings.customFields = this.plugin.settings.customFields.filter((item) => item.id !== field.id);
       await this.plugin.saveSettings();
-      this.update();
+      this.refreshSettings();
     });
   }
 };
@@ -2509,6 +2529,15 @@ function ensureFrontmatterTag(frontmatter, tag) {
 }
 
 // src/plugin.ts
+function markButtonDestructive2(button) {
+  if (typeof button.setDestructive === "function") {
+    return button.setDestructive();
+  }
+  if (typeof button.setWarning === "function") {
+    return button.setWarning();
+  }
+  return button;
+}
 var ConfirmDeleteTaskModal = class extends import_obsidian6.Modal {
   constructor(app, taskName) {
     super(app);
@@ -2531,7 +2560,8 @@ var ConfirmDeleteTaskModal = class extends import_obsidian6.Modal {
       this.resolve(false);
       this.close();
     });
-    new import_obsidian6.ButtonComponent(footer).setButtonText("Delete").setDestructive().setCta().onClick(() => {
+    const deleteButton = new import_obsidian6.ButtonComponent(footer).setButtonText("Delete");
+    markButtonDestructive2(deleteButton).setCta().onClick(() => {
       this.resolve(true);
       this.close();
     });
@@ -2550,6 +2580,12 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     this.addCommand({
       id: "open-taskmanagement-kanban-board",
       name: "Open Kanban board",
+      hotkeys: [
+        {
+          modifiers: ["Mod", "Shift"],
+          key: "K"
+        }
+      ],
       callback: () => {
         void this.activateView();
       }
@@ -2564,6 +2600,12 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
+      hotkeys: [
+        {
+          modifiers: ["Mod", "Shift"],
+          key: "T"
+        }
+      ],
       callback: () => new CreateTaskModal(this.app, this).open()
     });
     this.addSettingTab(new KanbanSettingTab(this.app, this));
@@ -3191,7 +3233,22 @@ ${yaml}
   async deleteTask(file) {
     const confirmed = await new ConfirmDeleteTaskModal(this.app, file.basename).openAndAwait();
     if (!confirmed) return false;
-    await this.app.fileManager.trashFile(file);
+    try {
+      if (this.app.fileManager && typeof this.app.fileManager.trashFile === "function") {
+        await this.app.fileManager.trashFile(file);
+      } else {
+        await this.app.vault.trash(file, true);
+      }
+    } catch (error) {
+      console.error("Failed to delete task", error);
+      try {
+        await this.app.vault.trash(file, true);
+      } catch (fallbackError) {
+        console.error("Failed to delete task with vault fallback", fallbackError);
+        new import_obsidian6.Notice("Task could not be deleted.");
+        return false;
+      }
+    }
     new import_obsidian6.Notice("Task deleted.");
     this.refreshViews();
     return true;

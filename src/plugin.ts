@@ -26,6 +26,18 @@ import { formatTimestampForFileName, nowIso, toDate } from "./utils/date";
 import { ensureFrontmatterTag, hasFrontmatterTag } from "./utils/tags";
 import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
 
+function markButtonDestructive(button) {
+  if (typeof button.setDestructive === "function") {
+    return button.setDestructive();
+  }
+
+  if (typeof button.setWarning === "function") {
+    return button.setWarning();
+  }
+
+  return button;
+}
+
 class ConfirmDeleteTaskModal extends Modal {
   constructor(app, taskName) {
     super(app);
@@ -55,9 +67,9 @@ class ConfirmDeleteTaskModal extends Modal {
         this.resolve(false);
         this.close();
       });
-    new ButtonComponent(footer)
-      .setButtonText("Delete")
-      .setDestructive()
+    const deleteButton = new ButtonComponent(footer)
+      .setButtonText("Delete");
+    markButtonDestructive(deleteButton)
       .setCta()
       .onClick(() => {
         this.resolve(true);
@@ -83,6 +95,12 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.addCommand({
       id: "open-taskmanagement-kanban-board",
       name: "Open Kanban board",
+      hotkeys: [
+        {
+          modifiers: ["Mod", "Shift"],
+          key: "K"
+        }
+      ],
       callback: () => {
         void this.activateView();
       }
@@ -99,6 +117,12 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
+      hotkeys: [
+        {
+          modifiers: ["Mod", "Shift"],
+          key: "T"
+        }
+      ],
       callback: () => new CreateTaskModal(this.app, this).open()
     });
 
@@ -827,7 +851,22 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const confirmed = await new ConfirmDeleteTaskModal(this.app, file.basename).openAndAwait();
     if (!confirmed) return false;
 
-    await this.app.fileManager.trashFile(file);
+    try {
+      if (this.app.fileManager && typeof this.app.fileManager.trashFile === "function") {
+        await this.app.fileManager.trashFile(file);
+      } else {
+        await this.app.vault.trash(file, true);
+      }
+    } catch (error) {
+      console.error("Failed to delete task", error);
+      try {
+        await this.app.vault.trash(file, true);
+      } catch (fallbackError) {
+        console.error("Failed to delete task with vault fallback", fallbackError);
+        new Notice("Task could not be deleted.");
+        return false;
+      }
+    }
 
     new Notice("Task deleted.");
     this.refreshViews();

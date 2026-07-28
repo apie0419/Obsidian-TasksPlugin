@@ -4,6 +4,18 @@ import { PRIORITIES } from "../constants";
 import { getTaskTitle } from "../taskFields";
 import { formatDateForInput, formatDateTimeForInput, readDateInputAsIso } from "../utils/date";
 
+function markButtonDestructive(button) {
+  if (typeof button.setDestructive === "function") {
+    return button.setDestructive();
+  }
+
+  if (typeof button.setWarning === "function") {
+    return button.setWarning();
+  }
+
+  return button;
+}
+
 function parseCheckboxValue(value) {
   if (value === true || value === false) return value;
   const normalized = String(value || "").trim().toLowerCase();
@@ -414,11 +426,11 @@ export class EditTaskModal extends Modal {
     }
 
     const footer = contentEl.createDiv({ cls: "frontmatter-kanban-modal-footer" });
-    new ButtonComponent(footer)
+    const deleteButton = new ButtonComponent(footer)
       .setButtonText("Delete")
       .setIcon("trash-2")
-      .setDestructive()
-      .setClass("frontmatter-kanban-delete-button")
+      .setClass("frontmatter-kanban-delete-button");
+    markButtonDestructive(deleteButton)
       .onClick(async () => {
         const deleted = await this.plugin.deleteTask(this.task.file);
         if (deleted) this.close();
