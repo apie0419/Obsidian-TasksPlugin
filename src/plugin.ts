@@ -328,7 +328,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const path = this.getKanbanBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing instanceof TFile) {
-      await this.migrateKanbanBaseFile(existing);
+      await this.migrateBaseFile(existing);
       return existing;
     }
 
@@ -340,7 +340,10 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   async ensureTimelineBaseFile() {
     const path = this.getTimelineBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) return existing;
+    if (existing instanceof TFile) {
+      await this.migrateBaseFile(existing);
+      return existing;
+    }
 
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
@@ -355,9 +358,12 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.ensureFolder(FEATURE_FOLDER);
   }
 
-  async migrateKanbanBaseFile(file) {
+  async migrateBaseFile(file) {
     const contents = await this.app.vault.cachedRead(file);
     let nextContents = contents;
+
+    nextContents = nextContents.replace(/\btype:\s+frontmatterKanban\b/g, `type: ${BASES_KANBAN_VIEW_TYPE}`);
+    nextContents = nextContents.replace(/\btype:\s+frontmatterTimeline\b/g, `type: ${BASES_TIMELINE_VIEW_TYPE}`);
 
     if (nextContents.includes("kanban_task")) {
       nextContents = nextContents.replace(

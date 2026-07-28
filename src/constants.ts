@@ -1,5 +1,5 @@
-export const BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
-export const BASES_TIMELINE_VIEW_TYPE = "frontmatterTimeline";
+export const BASES_KANBAN_VIEW_TYPE = "frontmatterkanban";
+export const BASES_TIMELINE_VIEW_TYPE = "frontmattertimeline";
 export const ROOT_FOLDER = "TaskManagement";
 export const TASK_FOLDER = `${ROOT_FOLDER}/Tasks`;
 export const VIEWS_FOLDER = `${ROOT_FOLDER}/Views`;

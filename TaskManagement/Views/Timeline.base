@@ -7,7 +7,7 @@ formulas:
   isOverdue: note.due && date(note.due) < today() && note.status != "done"
   daysUntilDue: if(note.due, ((number(date(note.due)) - number(today())) / 86400000).floor(), null)
 views:
-  - type: frontmatterTimeline
+  - type: frontmattertimeline
     name: Timeline
     order:
       - status

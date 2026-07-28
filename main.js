@@ -27,8 +27,8 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian6 = require("obsidian");
 
 // src/constants.ts
-var BASES_KANBAN_VIEW_TYPE = "frontmatterKanban";
-var BASES_TIMELINE_VIEW_TYPE = "frontmatterTimeline";
+var BASES_KANBAN_VIEW_TYPE = "frontmatterkanban";
+var BASES_TIMELINE_VIEW_TYPE = "frontmattertimeline";
 var ROOT_FOLDER = "TaskManagement";
 var TASK_FOLDER = `${ROOT_FOLDER}/Tasks`;
 var VIEWS_FOLDER = `${ROOT_FOLDER}/Views`;
@@ -2789,7 +2789,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     const path = this.getKanbanBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing instanceof import_obsidian6.TFile) {
-      await this.migrateKanbanBaseFile(existing);
+      await this.migrateBaseFile(existing);
       return existing;
     }
     const folder = path.split("/").slice(0, -1).join("/");
@@ -2799,7 +2799,10 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
   async ensureTimelineBaseFile() {
     const path = this.getTimelineBasePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof import_obsidian6.TFile) return existing;
+    if (existing instanceof import_obsidian6.TFile) {
+      await this.migrateBaseFile(existing);
+      return existing;
+    }
     const folder = path.split("/").slice(0, -1).join("/");
     await this.ensureFolder(folder);
     return this.createMarkdownFile(path, generateDefaultTimelineBase(this.getTaskFolder()));
@@ -2811,9 +2814,11 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     await this.ensureFolder(PROJECT_FOLDER);
     await this.ensureFolder(FEATURE_FOLDER);
   }
-  async migrateKanbanBaseFile(file) {
+  async migrateBaseFile(file) {
     const contents = await this.app.vault.cachedRead(file);
     let nextContents = contents;
+    nextContents = nextContents.replace(/\btype:\s+frontmatterKanban\b/g, `type: ${BASES_KANBAN_VIEW_TYPE}`);
+    nextContents = nextContents.replace(/\btype:\s+frontmatterTimeline\b/g, `type: ${BASES_TIMELINE_VIEW_TYPE}`);
     if (nextContents.includes("kanban_task")) {
       nextContents = nextContents.replace(
         /filters:\r?\n {2}or:\r?\n {4}- note\["kanban_task"\] == true\r?\n {4}- note\.status && note\.status != ""/,
