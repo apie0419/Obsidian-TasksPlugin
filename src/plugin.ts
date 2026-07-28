@@ -38,6 +38,10 @@ function markButtonDestructive(button) {
   return button;
 }
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 class ConfirmDeleteTaskModal extends Modal {
   constructor(app, taskName) {
     super(app);
@@ -86,7 +90,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    this.registerBasesIntegration();
+    this.basesIntegrationRegistered = false;
 
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
       void this.activateView();
@@ -146,6 +150,11 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.ensureKanbanBaseFile();
     await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
+
+    this.app.workspace.onLayoutReady(() => {
+      this.ensureBasesIntegration();
+    });
+
     void this.syncDerivedFields();
     void this.checkNotifications();
   }
@@ -186,6 +195,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   async activateView() {
     const file = await this.ensureKanbanBaseFile();
+    await this.ensureBasesIntegrationBeforeOpen();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
     await this.app.workspace.revealLeaf(leaf);
@@ -193,6 +203,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   async activateTimelineView() {
     const file = await this.ensureTimelineBaseFile();
+    await this.ensureBasesIntegrationBeforeOpen();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
     await this.app.workspace.revealLeaf(leaf);
@@ -204,64 +215,105 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
-  registerBasesIntegration() {
-    if (typeof this.registerBasesView !== "function") {
-      new Notice("Obsidian Bases API is not available. Please update Obsidian and enable the Bases core plugin.");
-      return;
+  async ensureBasesIntegrationBeforeOpen() {
+    if (this.basesIntegrationRegistered) return;
+    this.ensureBasesIntegration(0, true);
+    await wait(100);
+  }
+
+  ensureBasesIntegration(retryCount = 0, notify = false) {
+    if (this.basesIntegrationRegistered) return true;
+    const registered = this.registerBasesIntegration({ notify });
+    if (registered) {
+      this.scheduleRefreshViews(250);
+      return true;
     }
 
-    const kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
-      name: "Kanban Board",
-      icon: "kanban",
-      factory: buildKanbanBasesViewFactory(this),
-      options: () => [
-        {
-          type: "slider",
-          key: "columnWidth",
-          displayName: "Column width",
-          default: 380,
-          min: 280,
-          max: 560,
-          step: 20
-        }
-      ]
-    });
+    if (retryCount >= 5) {
+      if (notify) this.registerBasesIntegration({ notify: true });
+      return false;
+    }
 
-    const timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
-      name: "Timeline",
-      icon: "calendar-days",
-      factory: buildTimelineBasesViewFactory(this),
-      options: () => [
-        {
-          type: "slider",
-          key: "dayWidth",
-          displayName: "Day width",
-          default: 170,
-          min: 120,
-          max: 260,
-          step: 10
-        },
-        {
-          type: "slider",
-          key: "laneHeight",
-          displayName: "Lane height",
-          default: 118,
-          min: 84,
-          max: 180,
-          step: 8
-        },
-        {
-          type: "toggle",
-          key: "hideWeekends",
-          displayName: "Hide weekends",
-          default: false
-        }
-      ]
-    });
+    this.registerInterval(window.setTimeout(() => {
+      this.ensureBasesIntegration(retryCount + 1, notify);
+    }, 750));
+    return false;
+  }
+
+  registerBasesIntegration({ notify = false } = {}) {
+    if (this.basesIntegrationRegistered) return true;
+    if (typeof this.registerBasesView !== "function") {
+      if (notify) {
+        new Notice("Obsidian Bases API is not available. Please update Obsidian and enable the Bases core plugin.");
+      }
+      return false;
+    }
+
+    let kanbanRegistered = false;
+    let timelineRegistered = false;
+    try {
+      kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
+        name: "Kanban Board",
+        icon: "kanban",
+        factory: buildKanbanBasesViewFactory(this),
+        options: () => [
+          {
+            type: "slider",
+            key: "columnWidth",
+            displayName: "Column width",
+            default: 380,
+            min: 280,
+            max: 560,
+            step: 20
+          }
+        ]
+      });
+
+      timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
+        name: "Timeline",
+        icon: "calendar-days",
+        factory: buildTimelineBasesViewFactory(this),
+        options: () => [
+          {
+            type: "slider",
+            key: "dayWidth",
+            displayName: "Day width",
+            default: 170,
+            min: 120,
+            max: 260,
+            step: 10
+          },
+          {
+            type: "slider",
+            key: "laneHeight",
+            displayName: "Lane height",
+            default: 118,
+            min: 84,
+            max: 180,
+            step: 8
+          },
+          {
+            type: "toggle",
+            key: "hideWeekends",
+            displayName: "Hide weekends",
+            default: false
+          }
+        ]
+      });
+    } catch (error) {
+      console.error("Failed to register TaskManagement Bases views", error);
+      return false;
+    }
 
     if (!kanbanRegistered || !timelineRegistered) {
-      new Notice("Enable the Bases core plugin to use TaskManagement views.");
+      if (notify) {
+        new Notice("Enable the Bases core plugin to use TaskManagement views.");
+      }
+      return false;
     }
+
+    this.basesIntegrationRegistered = true;
+    return true;
   }
 
   getKanbanBasePath() {
