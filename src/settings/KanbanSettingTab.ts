@@ -62,7 +62,7 @@ export class KanbanSettingTab extends PluginSettingTab {
     const summary = section.createEl("summary");
     summary.createSpan({ cls: "frontmatter-kanban-settings-section-title", text: title });
     if (desc) {
-      summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: desc });
+      summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: ` ${desc}` });
     }
     return section;
   }

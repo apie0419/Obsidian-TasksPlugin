@@ -1176,75 +1176,133 @@
   margin-right: auto;
 }
 
+.frontmatter-kanban-settings {
+  max-width: 920px;
+  padding-bottom: 32px;
+}
+
+.frontmatter-kanban-settings > .setting-item-heading {
+  margin-bottom: 18px;
+}
+
 .frontmatter-kanban-settings-section {
-  margin: 14px 0;
-  padding-bottom: 14px;
+  margin: 18px 0 24px;
+  padding-bottom: 18px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  background: var(--background-primary);
+  background: var(--background-secondary);
   overflow: hidden;
 }
 
 .frontmatter-kanban-settings-section > summary {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 12px;
+  display: block;
+  padding: 14px 16px;
   cursor: pointer;
   border-bottom: 1px solid var(--background-modifier-border);
+  line-height: 1.35;
 }
 
 .frontmatter-kanban-settings-section:not([open]) > summary {
   border-bottom: 0;
-  margin-bottom: -14px;
+  margin-bottom: -18px;
 }
 
 .frontmatter-kanban-settings-section-title {
+  display: inline;
   font-weight: 700;
 }
 
 .frontmatter-kanban-settings-section-desc {
+  display: block;
+  margin-top: 3px;
+  margin-left: 20px;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+}
+
+.frontmatter-kanban-settings-section > .setting-item {
+  padding: 12px 16px;
+  border-top: 0;
 }
 
 .frontmatter-kanban-settings-section > .setting-item,
 .frontmatter-kanban-settings-section > .frontmatter-kanban-settings-add-row,
 .frontmatter-kanban-settings-section > .frontmatter-kanban-custom-field-editor,
 .frontmatter-kanban-settings-section > h4 {
-  margin-left: 12px;
-  margin-right: 12px;
+  margin-left: 16px;
+  margin-right: 16px;
 }
 
 .frontmatter-kanban-settings-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 12px 12px 14px;
+  gap: 10px;
+  margin: 16px 16px 18px;
 }
 
 .frontmatter-kanban-settings-row,
 .frontmatter-kanban-custom-field-row {
-  padding: 8px;
+  padding: 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
+  background: var(--background-primary);
 }
 
 .frontmatter-kanban-settings-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
 .frontmatter-kanban-status-row {
-  justify-content: flex-start;
   width: auto;
 }
 
 .frontmatter-kanban-status-row .setting-item-control,
 .frontmatter-kanban-status-row input {
-  flex: 1 1 180px;
+  width: 100%;
+  min-width: 0;
+}
+
+.frontmatter-kanban-settings-add-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.frontmatter-kanban-custom-field-editor,
+.frontmatter-kanban-custom-field-row {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1.05fr)
+    minmax(120px, 0.65fr)
+    minmax(210px, 1.2fr)
+    minmax(160px, 1fr)
+    auto
+    auto
+    auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.frontmatter-kanban-custom-field-editor {
+  grid-template-columns:
+    minmax(150px, 1.05fr)
+    minmax(120px, 0.65fr)
+    minmax(210px, 1.2fr)
+    minmax(160px, 1fr)
+    auto
+    auto;
+}
+
+.frontmatter-kanban-custom-field-editor input,
+.frontmatter-kanban-custom-field-row input,
+.frontmatter-kanban-custom-field-editor select,
+.frontmatter-kanban-custom-field-row select {
+  width: 100%;
+  min-width: 0;
 }
 
 .frontmatter-kanban-inline-toggle {
@@ -1253,6 +1311,7 @@
   gap: 6px;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
+  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
@@ -1265,6 +1324,46 @@
     align-items: stretch;
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .frontmatter-kanban-settings {
+    max-width: none;
+  }
+
+  .frontmatter-kanban-settings-section > summary {
+    padding: 13px 14px;
+  }
+
+  .frontmatter-kanban-settings-section-desc {
+    margin-left: 0;
+  }
+
+  .frontmatter-kanban-settings-section > .setting-item,
+  .frontmatter-kanban-settings-section > .frontmatter-kanban-settings-add-row,
+  .frontmatter-kanban-settings-section > .frontmatter-kanban-custom-field-editor,
+  .frontmatter-kanban-settings-section > h4 {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .frontmatter-kanban-settings-list {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .frontmatter-kanban-settings-row,
+  .frontmatter-kanban-settings-add-row,
+  .frontmatter-kanban-custom-field-editor,
+  .frontmatter-kanban-custom-field-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .frontmatter-kanban-settings-row button,
+  .frontmatter-kanban-settings-add-row button,
+  .frontmatter-kanban-custom-field-editor button,
+  .frontmatter-kanban-custom-field-row button {
+    justify-self: start;
   }
 }
 

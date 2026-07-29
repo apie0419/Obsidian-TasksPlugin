@@ -2357,7 +2357,7 @@ var KanbanSettingTab = class extends import_obsidian5.PluginSettingTab {
     const summary = section.createEl("summary");
     summary.createSpan({ cls: "frontmatter-kanban-settings-section-title", text: title });
     if (desc) {
-      summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: desc });
+      summary.createSpan({ cls: "frontmatter-kanban-settings-section-desc", text: ` ${desc}` });
     }
     return section;
   }
@@ -2577,6 +2577,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
   async onload() {
     await this.loadSettings();
     this.basesIntegrationRegistered = false;
+    this.ensureBasesIntegration();
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
       void this.activateView();
     });
@@ -2631,6 +2632,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     await this.migrateLegacyTaskTags();
     this.app.workspace.onLayoutReady(() => {
       this.ensureBasesIntegration();
+      this.scheduleRefreshViews(500);
     });
     void this.syncDerivedFields();
     void this.checkNotifications();
@@ -2716,10 +2718,8 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
       }
       return false;
     }
-    let kanbanRegistered = false;
-    let timelineRegistered = false;
     try {
-      kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
+      const kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
         name: "Kanban Board",
         icon: "kanban",
         factory: buildKanbanBasesViewFactory(this),
@@ -2735,7 +2735,13 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
           }
         ]
       });
-      timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
+      if (kanbanRegistered === false) {
+        if (notify) {
+          new import_obsidian6.Notice("Enable the Bases core plugin to use TaskManagement views.");
+        }
+        return false;
+      }
+      const timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
         name: "Timeline",
         icon: "calendar-days",
         factory: buildTimelineBasesViewFactory(this),
@@ -2766,14 +2772,14 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
           }
         ]
       });
+      if (timelineRegistered === false) {
+        if (notify) {
+          new import_obsidian6.Notice("Enable the Bases core plugin to use TaskManagement views.");
+        }
+        return false;
+      }
     } catch (error) {
       console.error("Failed to register TaskManagement Bases views", error);
-      return false;
-    }
-    if (!kanbanRegistered || !timelineRegistered) {
-      if (notify) {
-        new import_obsidian6.Notice("Enable the Bases core plugin to use TaskManagement views.");
-      }
       return false;
     }
     this.basesIntegrationRegistered = true;

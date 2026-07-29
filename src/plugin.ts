@@ -91,6 +91,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.loadSettings();
 
     this.basesIntegrationRegistered = false;
+    this.ensureBasesIntegration();
 
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
       void this.activateView();
@@ -153,6 +154,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       this.ensureBasesIntegration();
+      this.scheduleRefreshViews(500);
     });
 
     void this.syncDerivedFields();
@@ -249,10 +251,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
       return false;
     }
 
-    let kanbanRegistered = false;
-    let timelineRegistered = false;
     try {
-      kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
+      const kanbanRegistered = this.registerBasesView(BASES_KANBAN_VIEW_TYPE, {
         name: "Kanban Board",
         icon: "kanban",
         factory: buildKanbanBasesViewFactory(this),
@@ -268,8 +268,14 @@ export default class FrontmatterKanbanPlugin extends Plugin {
           }
         ]
       });
+      if (kanbanRegistered === false) {
+        if (notify) {
+          new Notice("Enable the Bases core plugin to use TaskManagement views.");
+        }
+        return false;
+      }
 
-      timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
+      const timelineRegistered = this.registerBasesView(BASES_TIMELINE_VIEW_TYPE, {
         name: "Timeline",
         icon: "calendar-days",
         factory: buildTimelineBasesViewFactory(this),
@@ -300,15 +306,14 @@ export default class FrontmatterKanbanPlugin extends Plugin {
           }
         ]
       });
+      if (timelineRegistered === false) {
+        if (notify) {
+          new Notice("Enable the Bases core plugin to use TaskManagement views.");
+        }
+        return false;
+      }
     } catch (error) {
       console.error("Failed to register TaskManagement Bases views", error);
-      return false;
-    }
-
-    if (!kanbanRegistered || !timelineRegistered) {
-      if (notify) {
-        new Notice("Enable the Bases core plugin to use TaskManagement views.");
-      }
       return false;
     }
 
