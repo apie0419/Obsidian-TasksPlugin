@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Bases entries and frontmatter are runtime-shaped Obsidian data. */
-import { BasesView, ButtonComponent, setIcon, TFile } from "obsidian";
+import { BasesView, ButtonComponent, Menu, setIcon, TFile } from "obsidian";
 import type { BasesViewFactory } from "obsidian";
 import { BASES_TIMELINE_VIEW_TYPE, PRIORITIES } from "../constants";
 import { CreateTaskModal, EditTaskModal } from "../modals/TaskModals";
@@ -139,6 +139,19 @@ export class TimelineBasesView extends BasesView {
 
   openCreateTaskModal(initialValues = {}) {
     new CreateTaskModal(this.plugin.app, this.plugin, initialValues).open();
+  }
+
+  openCreateTaskMenu(event, date) {
+    const dateText = formatDateOnly(date);
+    const menu = new Menu();
+    menu.addItem((item) => item
+      .setTitle(`New task on ${dateText}`)
+      .setIcon("plus")
+      .onClick(() => this.openCreateTaskModal({
+        work_start: dateText,
+        work_end: dateText
+      })));
+    menu.showAtMouseEvent(event);
   }
 
   getCreateTaskInitialValues(baseFileName = "", frontmatterProcessor) {
@@ -424,6 +437,13 @@ export class TimelineBasesView extends BasesView {
       const task = tasks.find((item) => item.file.path === file.path);
       void this.scheduleTaskFromDrop(file, task, dropDate);
     });
+    this.registerDomEvent(grid, "contextmenu", (event) => {
+      const date = this.getDropDate(event, grid, visibleDays);
+      if (!date) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.openCreateTaskMenu(event, date);
+    });
 
     visibleDays.forEach((date, index) => {
       const header = grid.createDiv({ cls: "frontmatter-timeline-day-header" });
@@ -672,6 +692,11 @@ export class TimelineBasesView extends BasesView {
           const task = tasks.find((item) => item.file.path === file.path);
           void this.scheduleTaskFromDrop(file, task, date);
         });
+        this.registerDomEvent(cell, "contextmenu", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.openCreateTaskMenu(event, date);
+        });
         cell.createDiv({ cls: "frontmatter-timeline-month-date", text: String(date.getDate()) });
       });
     });
@@ -761,6 +786,8 @@ export class TimelineBasesView extends BasesView {
     }
     item.createSpan({ cls: "frontmatter-timeline-month-task-dot" });
     item.createSpan({ cls: "frontmatter-timeline-month-task-title", text: getTaskTitle(task) });
+    const status = String(task.frontmatter.status || this.plugin.getDefaultStatus()).trim();
+    if (status) item.createSpan({ cls: "frontmatter-timeline-month-task-status", text: status });
     const due = formatDateForInput(task.frontmatter.due);
     if (due) item.createSpan({ cls: "frontmatter-timeline-month-task-due", text: due.slice(5) });
     if (this.shouldUseTimelineResizeHandles()) {
