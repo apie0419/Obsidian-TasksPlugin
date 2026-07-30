@@ -597,9 +597,8 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     if (!file || !this.getReferenceFileKind(file)) return;
 
     menu.addItem((item) => item
-      .setTitle("Related tasks block")
+      .setTitle("Insert related tasks block")
       .setIcon("list-plus")
-      .setSection("insert")
       .onClick(() => {
         void this.insertRelatedTasksBlock(file);
       }));

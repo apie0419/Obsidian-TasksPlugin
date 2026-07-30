@@ -3048,7 +3048,7 @@ ${generateTimelineBaseViewBlock()}`;
   addRelatedTasksInsertMenuItem(menu, info) {
     const file = info && info.file instanceof import_obsidian6.TFile ? info.file : null;
     if (!file || !this.getReferenceFileKind(file)) return;
-    menu.addItem((item) => item.setTitle("Related tasks block").setIcon("list-plus").setSection("insert").onClick(() => {
+    menu.addItem((item) => item.setTitle("Insert related tasks block").setIcon("list-plus").onClick(() => {
       void this.insertRelatedTasksBlock(file);
     }));
   }
