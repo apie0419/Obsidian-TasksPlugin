@@ -2574,6 +2574,7 @@ function markButtonDestructive2(button) {
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
+var RELATED_TASKS_CODE_BLOCK = "taskmanagement-related-tasks";
 var ConfirmDeleteTaskModal = class extends import_obsidian6.Modal {
   constructor(app, taskName) {
     super(app);
@@ -2697,6 +2698,9 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
       callback: () => new CreateTaskModal(this.app, this).open()
     });
     this.addSettingTab(new KanbanSettingTab(this.app, this));
+    this.registerMarkdownCodeBlockProcessor(RELATED_TASKS_CODE_BLOCK, (source, el, ctx) => {
+      this.renderRelatedTasksBlock(el, ctx);
+    });
     this.registerMarkdownPostProcessor((el, ctx) => {
       void this.renderRelatedTasksPostProcessor(el, ctx);
     }, 1e3);
@@ -2717,6 +2721,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     await this.ensureKanbanBaseFile();
     await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
+    await this.ensureReferencePagesRelatedTasksBlocks();
     this.app.workspace.onLayoutReady(() => {
       this.ensureBasesIntegration();
       this.scheduleRefreshViews(500);
@@ -2985,9 +2990,10 @@ ${generateTimelineBaseViewBlock()}`;
     if (!(file instanceof import_obsidian6.TFile)) return;
     const kind = this.getReferenceFileKind(file);
     if (!kind) return;
+    const contents = await this.app.vault.cachedRead(file);
+    if (this.hasRelatedTasksBlock(contents)) return;
     const section = ctx.getSectionInfo(el);
     if (section) {
-      const contents = await this.app.vault.cachedRead(file);
       const lines = contents.split(/\r?\n/);
       let lastContentLine = Math.max(0, lines.length - 1);
       while (lastContentLine > 0 && !lines[lastContentLine].trim()) {
@@ -3001,6 +3007,43 @@ ${generateTimelineBaseViewBlock()}`;
     }
     const container = el.createDiv({ cls: "frontmatter-kanban-related-tasks" });
     ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind));
+  }
+  renderRelatedTasksBlock(el, ctx) {
+    const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof import_obsidian6.TFile)) return;
+    const kind = this.getReferenceFileKind(file);
+    if (!kind) return;
+    el.empty();
+    el.addClass("frontmatter-kanban-related-tasks");
+    ctx.addChild(new RelatedTasksRenderChild(el, this, file, kind));
+  }
+  hasRelatedTasksBlock(contents) {
+    return new RegExp(`^\`\`\`+\\s*${RELATED_TASKS_CODE_BLOCK}\\b`, "m").test(String(contents || ""));
+  }
+  getRelatedTasksBlockMarkdown() {
+    return `
+
+\`\`\`${RELATED_TASKS_CODE_BLOCK}
+\`\`\`
+`;
+  }
+  getReferenceNoteContents(name) {
+    return `# ${name}
+${this.getRelatedTasksBlockMarkdown()}`;
+  }
+  getReferenceKindForFolder(folder) {
+    const normalizedFolder = (0, import_obsidian6.normalizePath)(folder);
+    if (normalizedFolder === this.getProjectFolder()) return "project";
+    if (normalizedFolder.startsWith(`${FEATURE_FOLDER}/`)) return "feature";
+    return "";
+  }
+  async ensureReferencePagesRelatedTasksBlocks() {
+    const files = this.app.vault.getMarkdownFiles().filter((file) => this.getReferenceFileKind(file));
+    for (const file of files) {
+      const contents = await this.app.vault.cachedRead(file);
+      if (this.hasRelatedTasksBlock(contents)) continue;
+      await this.app.vault.modify(file, `${contents.trimEnd()}${this.getRelatedTasksBlockMarkdown()}`);
+    }
   }
   getTaskFolder() {
     return TASK_FOLDER;
@@ -3249,12 +3292,12 @@ ${yaml}
     const path = (0, import_obsidian6.normalizePath)(`${folder}/${sanitizedName}.md`);
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing instanceof import_obsidian6.TFile) return existing;
+    const contents = this.getReferenceKindForFolder(folder) ? this.getReferenceNoteContents(name) : `# ${name}
+`;
     if (existing) {
-      return this.createUniqueMarkdownFile(folder, sanitizedName, `# ${name}
-`);
+      return this.createUniqueMarkdownFile(folder, sanitizedName, contents);
     }
-    return this.createMarkdownFile(path, `# ${name}
-`);
+    return this.createMarkdownFile(path, contents);
   }
   async updateTaskStatus(file, status) {
     const nextStatus = this.normalizeTaskStatus(status);

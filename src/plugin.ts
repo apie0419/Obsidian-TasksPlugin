@@ -44,6 +44,8 @@ function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+const RELATED_TASKS_CODE_BLOCK = "taskmanagement-related-tasks";
+
 class ConfirmDeleteTaskModal extends Modal {
   constructor(app, taskName) {
     super(app);
@@ -194,6 +196,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     });
 
     this.addSettingTab(new KanbanSettingTab(this.app, this));
+    this.registerMarkdownCodeBlockProcessor(RELATED_TASKS_CODE_BLOCK, (source, el, ctx) => {
+      this.renderRelatedTasksBlock(el, ctx);
+    });
     this.registerMarkdownPostProcessor((el, ctx) => {
       void this.renderRelatedTasksPostProcessor(el, ctx);
     }, 1000);
@@ -216,6 +221,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.ensureKanbanBaseFile();
     await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
+    await this.ensureReferencePagesRelatedTasksBlocks();
 
     this.app.workspace.onLayoutReady(() => {
       this.ensureBasesIntegration();
@@ -517,9 +523,11 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const kind = this.getReferenceFileKind(file);
     if (!kind) return;
 
+    const contents = await this.app.vault.cachedRead(file);
+    if (this.hasRelatedTasksBlock(contents)) return;
+
     const section = ctx.getSectionInfo(el);
     if (section) {
-      const contents = await this.app.vault.cachedRead(file);
       const lines = contents.split(/\r?\n/);
       let lastContentLine = Math.max(0, lines.length - 1);
       while (lastContentLine > 0 && !lines[lastContentLine].trim()) {
@@ -535,6 +543,48 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
     const container = el.createDiv({ cls: "frontmatter-kanban-related-tasks" });
     ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind));
+  }
+
+  renderRelatedTasksBlock(el, ctx) {
+    const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof TFile)) return;
+
+    const kind = this.getReferenceFileKind(file);
+    if (!kind) return;
+
+    el.empty();
+    el.addClass("frontmatter-kanban-related-tasks");
+    ctx.addChild(new RelatedTasksRenderChild(el, this, file, kind));
+  }
+
+  hasRelatedTasksBlock(contents) {
+    return new RegExp(`^\`\`\`+\\s*${RELATED_TASKS_CODE_BLOCK}\\b`, "m").test(String(contents || ""));
+  }
+
+  getRelatedTasksBlockMarkdown() {
+    return `\n\n\`\`\`${RELATED_TASKS_CODE_BLOCK}\n\`\`\`\n`;
+  }
+
+  getReferenceNoteContents(name) {
+    return `# ${name}\n${this.getRelatedTasksBlockMarkdown()}`;
+  }
+
+  getReferenceKindForFolder(folder) {
+    const normalizedFolder = normalizePath(folder);
+    if (normalizedFolder === this.getProjectFolder()) return "project";
+    if (normalizedFolder.startsWith(`${FEATURE_FOLDER}/`)) return "feature";
+    return "";
+  }
+
+  async ensureReferencePagesRelatedTasksBlocks() {
+    const files = this.app.vault.getMarkdownFiles()
+      .filter((file) => this.getReferenceFileKind(file));
+
+    for (const file of files) {
+      const contents = await this.app.vault.cachedRead(file);
+      if (this.hasRelatedTasksBlock(contents)) continue;
+      await this.app.vault.modify(file, `${contents.trimEnd()}${this.getRelatedTasksBlockMarkdown()}`);
+    }
   }
 
   getTaskFolder() {
@@ -825,11 +875,14 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     const path = normalizePath(`${folder}/${sanitizedName}.md`);
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing instanceof TFile) return existing;
+    const contents = this.getReferenceKindForFolder(folder)
+      ? this.getReferenceNoteContents(name)
+      : `# ${name}\n`;
     if (existing) {
-      return this.createUniqueMarkdownFile(folder, sanitizedName, `# ${name}\n`);
+      return this.createUniqueMarkdownFile(folder, sanitizedName, contents);
     }
 
-    return this.createMarkdownFile(path, `# ${name}\n`);
+    return this.createMarkdownFile(path, contents);
   }
 
   async updateTaskStatus(file, status) {
