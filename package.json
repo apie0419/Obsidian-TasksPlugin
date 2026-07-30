@@ -1,6 +1,6 @@
 {
   "name": "taskmanagement",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "private": true,
   "description": "Manage Markdown task notes with frontmatter-powered kanban and timeline views.",
   "main": "main.js",
