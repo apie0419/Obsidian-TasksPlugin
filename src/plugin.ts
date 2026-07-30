@@ -91,12 +91,11 @@ class ConfirmDeleteTaskModal extends Modal {
 }
 
 class RelatedTasksRenderChild extends MarkdownRenderChild {
-  constructor(containerEl, plugin, referenceFile, kind, showInsertButton = false) {
+  constructor(containerEl, plugin, referenceFile, kind) {
     super(containerEl);
     this.plugin = plugin;
     this.referenceFile = referenceFile;
     this.kind = kind;
-    this.showInsertButton = showInsertButton;
   }
 
   onload() {
@@ -111,23 +110,6 @@ class RelatedTasksRenderChild extends MarkdownRenderChild {
     const header = this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-header" });
     header.createDiv({ cls: "frontmatter-kanban-related-tasks-title", text: "Related tasks" });
     header.createDiv({ cls: "frontmatter-kanban-related-tasks-count", text: String(tasks.length) });
-    if (this.showInsertButton) {
-      new ButtonComponent(header)
-        .setButtonText("Insert")
-        .setTooltip("Insert this related tasks block into the note")
-        .onClick(async () => {
-          const inserted = await this.plugin.insertRelatedTasksBlock(this.referenceFile);
-          if (inserted) {
-            this.showInsertButton = false;
-            void this.render();
-          }
-        });
-    } else {
-      new ButtonComponent(header)
-        .setButtonText("Inserted")
-        .setTooltip("This note already contains the related tasks block")
-        .setDisabled(true);
-    }
 
     if (!tasks.length) {
       this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-empty", text: "No related tasks" });
@@ -211,19 +193,6 @@ export default class FrontmatterKanbanPlugin extends Plugin {
         }
       ],
       callback: () => new CreateTaskModal(this.app, this).open()
-    });
-
-    this.addCommand({
-      id: "insert-taskmanagement-related-tasks-block",
-      name: "Insert related tasks block",
-      checkCallback: (checking) => {
-        const file = this.app.workspace.getActiveFile();
-        if (!(file instanceof TFile) || !this.getReferenceFileKind(file)) return false;
-        if (!checking) {
-          void this.insertRelatedTasksBlock(file);
-        }
-        return true;
-      }
     });
 
     this.addSettingTab(new KanbanSettingTab(this.app, this));
@@ -577,7 +546,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
 
     const container = el.createDiv({ cls: "frontmatter-kanban-related-tasks" });
-    ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind, true));
+    ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind));
   }
 
   renderRelatedTasksBlock(el, ctx) {
@@ -593,7 +562,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
   }
 
   addRelatedTasksInsertMenuItem(menu, info) {
-    const file = info && info.file instanceof TFile ? info.file : null;
+    const file = info && info.file instanceof TFile
+      ? info.file
+      : this.app.workspace.getActiveFile();
     if (!file || !this.getReferenceFileKind(file)) return;
 
     menu.addItem((item) => item
