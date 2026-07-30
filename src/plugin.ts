@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- Settings, frontmatter, and Bases integration data are runtime-shaped. */
-import { ButtonComponent, Modal, Notice, Plugin, Setting, TFile, normalizePath, stringifyYaml } from "obsidian";
+import { ButtonComponent, MarkdownRenderChild, Modal, Notice, Plugin, Setting, TFile, normalizePath, stringifyYaml } from "obsidian";
 import {
   BASES_KANBAN_VIEW_TYPE,
   BASES_TIMELINE_VIEW_TYPE,
@@ -18,11 +18,12 @@ import {
 import { buildKanbanBasesViewFactory } from "./bases/KanbanBasesView";
 import { buildTimelineBasesViewFactory } from "./bases/TimelineBasesView";
 import { generateDefaultKanbanBase, generateDefaultTimelineBase, generateTimelineBaseViewBlock } from "./bases/defaultKanbanBase";
-import { CreateTaskModal } from "./modals/TaskModals";
+import { openTaskMenu } from "./bases/TaskCard";
+import { CreateTaskModal, EditTaskModal } from "./modals/TaskModals";
 import { KanbanSettingTab } from "./settings/KanbanSettingTab";
 import { cleanStatus, dedupeStatuses, isDoneStatus, statusEquals } from "./status";
 import { getNotificationLeadMs, getPriorityWeight, getTaskTitle } from "./taskFields";
-import { formatTimestampForFileName, nowIso, toDate } from "./utils/date";
+import { formatDateForInput, formatTimestampForFileName, getWorkOnText, nowIso, toDate } from "./utils/date";
 import { ensureFrontmatterTag, hasFrontmatterTag } from "./utils/tags";
 import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
 import pluginStyles from "../styles.css";
@@ -87,6 +88,65 @@ class ConfirmDeleteTaskModal extends Modal {
   }
 }
 
+class RelatedTasksRenderChild extends MarkdownRenderChild {
+  constructor(containerEl, plugin, referenceFile, kind) {
+    super(containerEl);
+    this.plugin = plugin;
+    this.referenceFile = referenceFile;
+    this.kind = kind;
+  }
+
+  onload() {
+    void this.render();
+  }
+
+  async render() {
+    const tasks = await this.plugin.getTasksForReferenceFile(this.referenceFile, this.kind);
+    if (!this.containerEl.isConnected) return;
+
+    this.containerEl.empty();
+    const header = this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-header" });
+    header.createDiv({ cls: "frontmatter-kanban-related-tasks-title", text: "Related tasks" });
+    header.createDiv({ cls: "frontmatter-kanban-related-tasks-count", text: String(tasks.length) });
+
+    if (!tasks.length) {
+      this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-empty", text: "No related tasks" });
+      return;
+    }
+
+    const list = this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-list" });
+    for (const task of tasks) {
+      this.renderTaskRow(list, task);
+    }
+  }
+
+  renderTaskRow(list, task) {
+    const row = list.createEl("button", { cls: "frontmatter-kanban-related-task", type: "button" });
+    if (isDoneStatus(task.frontmatter.status)) row.addClass("is-done");
+    row.createSpan({
+      cls: "frontmatter-kanban-related-task-status",
+      text: String(task.frontmatter.status || this.plugin.getDefaultStatus())
+    });
+    row.createSpan({ cls: "frontmatter-kanban-related-task-title", text: getTaskTitle(task) });
+
+    const meta = [];
+    const workOn = getWorkOnText(task.frontmatter);
+    if (workOn) meta.push(workOn);
+    const due = formatDateForInput(task.frontmatter.due);
+    if (due) meta.push(`Due ${due}`);
+    if (meta.length) row.createSpan({ cls: "frontmatter-kanban-related-task-meta", text: meta.join(" | ") });
+
+    this.registerDomEvent(row, "click", () => {
+      new EditTaskModal(this.plugin.app, this.plugin, task).open();
+    });
+    this.registerDomEvent(row, "contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openTaskMenu(this, event, task);
+    });
+  }
+}
+
 export default class FrontmatterKanbanPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
@@ -134,6 +194,9 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     });
 
     this.addSettingTab(new KanbanSettingTab(this.app, this));
+    this.registerMarkdownPostProcessor((el, ctx) => {
+      void this.renderRelatedTasksPostProcessor(el, ctx);
+    }, 1000);
 
     this.derivedFieldSyncRunning = new Set();
     this.registerEvent(
@@ -447,6 +510,33 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }, delay);
   }
 
+  async renderRelatedTasksPostProcessor(el, ctx) {
+    const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+    if (!(file instanceof TFile)) return;
+
+    const kind = this.getReferenceFileKind(file);
+    if (!kind) return;
+
+    const section = ctx.getSectionInfo(el);
+    if (section) {
+      const contents = await this.app.vault.cachedRead(file);
+      const lines = contents.split(/\r?\n/);
+      let lastContentLine = Math.max(0, lines.length - 1);
+      while (lastContentLine > 0 && !lines[lastContentLine].trim()) {
+        lastContentLine -= 1;
+      }
+      if (section.lineEnd < lastContentLine) return;
+    }
+
+    const parent = el.parentElement;
+    if (parent) {
+      parent.querySelectorAll(".frontmatter-kanban-related-tasks").forEach((existing) => existing.detach());
+    }
+
+    const container = el.createDiv({ cls: "frontmatter-kanban-related-tasks" });
+    ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind));
+  }
+
   getTaskFolder() {
     return TASK_FOLDER;
   }
@@ -490,6 +580,60 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   getTaskFiles() {
     return this.getCandidateTaskFiles().filter((file) => this.isKanbanTaskFile(file));
+  }
+
+  getReferenceFileKind(file) {
+    if (!(file instanceof TFile) || file.extension !== "md") return "";
+    if (file.path.startsWith(`${FEATURE_FOLDER}/`)) return "feature";
+    if (file.path.startsWith(`${this.getProjectFolder()}/`) && !file.path.includes("/Features/")) return "project";
+    return "";
+  }
+
+  getProjectFileForFeatureFile(file) {
+    if (!(file instanceof TFile) || !file.path.startsWith(`${FEATURE_FOLDER}/`)) return null;
+    const relativePath = file.path.slice(`${FEATURE_FOLDER}/`.length);
+    const projectName = relativePath.split("/")[0];
+    return projectName ? this.findProjectFile(projectName, file.path) : null;
+  }
+
+  referenceValueMatchesFile(value, file, sourcePath = "") {
+    if (!(file instanceof TFile) || !String(value || "").trim()) return false;
+
+    const linked = this.findLinkedFile(value, sourcePath);
+    if (linked instanceof TFile && linked.path === file.path) return true;
+
+    const target = normalizePath(this.getReferenceInputTarget(value).replace(/\.md$/i, ""));
+    if (!target) return false;
+
+    const filePath = normalizePath(file.path.replace(/\.md$/i, ""));
+    if (target === filePath) return true;
+    return target.split("/").pop().toLowerCase() === file.basename.toLowerCase();
+  }
+
+  async getTasksForReferenceFile(referenceFile, kind) {
+    const tasks = await this.getTasks();
+    const relatedTasks = tasks.filter((task) => this.taskReferencesFile(task, referenceFile, kind));
+    return relatedTasks.sort((left, right) => {
+      const leftDone = isDoneStatus(left.frontmatter.status) ? 1 : 0;
+      const rightDone = isDoneStatus(right.frontmatter.status) ? 1 : 0;
+      if (leftDone !== rightDone) return leftDone - rightDone;
+      const leftDate = formatDateForInput(left.frontmatter.work_start || left.frontmatter.due);
+      const rightDate = formatDateForInput(right.frontmatter.work_start || right.frontmatter.due);
+      if (leftDate || rightDate) return (leftDate || "9999-99-99").localeCompare(rightDate || "9999-99-99");
+      return getTaskTitle(left).localeCompare(getTaskTitle(right));
+    });
+  }
+
+  taskReferencesFile(task, referenceFile, kind) {
+    if (kind === "feature") {
+      if (!this.referenceValueMatchesFile(task.frontmatter.feature, referenceFile, task.file.path)) return false;
+      const projectFile = this.getProjectFileForFeatureFile(referenceFile);
+      return !projectFile
+        || !String(task.frontmatter.project || "").trim()
+        || this.referenceValueMatchesFile(task.frontmatter.project, projectFile, task.file.path);
+    }
+
+    return this.referenceValueMatchesFile(task.frontmatter.project, referenceFile, task.file.path);
   }
 
   async getTasks() {

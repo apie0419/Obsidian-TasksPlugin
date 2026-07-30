@@ -958,6 +958,112 @@
   line-height: 1.45;
 }
 
+.frontmatter-kanban-related-tasks {
+  margin: 28px 0 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.frontmatter-kanban-related-tasks-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.frontmatter-kanban-related-tasks-title {
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  font-weight: 750;
+}
+
+.frontmatter-kanban-related-tasks-count {
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+  font-weight: 800;
+}
+
+.frontmatter-kanban-related-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.frontmatter-kanban-related-task {
+  width: 100%;
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(82px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  text-align: left;
+}
+
+.frontmatter-kanban-related-task:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
+.frontmatter-kanban-related-task.is-done {
+  opacity: 0.62;
+}
+
+.frontmatter-kanban-related-task-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+  font-weight: 800;
+}
+
+.frontmatter-kanban-related-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.frontmatter-kanban-related-task-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.frontmatter-kanban-related-tasks-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+@media (max-width: 720px) {
+  .frontmatter-kanban-related-task {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .frontmatter-kanban-related-task-status,
+  .frontmatter-kanban-related-task-meta {
+    justify-self: start;
+  }
+}
+
 .frontmatter-kanban-task-info-label {
   color: var(--text-muted);
   font-weight: 600;
