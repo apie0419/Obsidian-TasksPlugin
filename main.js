@@ -2722,6 +2722,11 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
       }
     });
     this.addSettingTab(new KanbanSettingTab(this.app, this));
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor, info) => {
+        this.addRelatedTasksInsertMenuItem(menu, info);
+      })
+    );
     this.registerMarkdownCodeBlockProcessor(RELATED_TASKS_CODE_BLOCK, (source, el, ctx) => {
       this.renderRelatedTasksBlock(el, ctx);
     });
@@ -3040,6 +3045,13 @@ ${generateTimelineBaseViewBlock()}`;
     el.addClass("frontmatter-kanban-related-tasks");
     ctx.addChild(new RelatedTasksRenderChild(el, this, file, kind));
   }
+  addRelatedTasksInsertMenuItem(menu, info) {
+    const file = info && info.file instanceof import_obsidian6.TFile ? info.file : null;
+    if (!file || !this.getReferenceFileKind(file)) return;
+    menu.addItem((item) => item.setTitle("Related tasks block").setIcon("list-plus").setSection("insert").onClick(() => {
+      void this.insertRelatedTasksBlock(file);
+    }));
+  }
   hasRelatedTasksBlock(contents) {
     return new RegExp(`^\`\`\`+\\s*${RELATED_TASKS_CODE_BLOCK}\\b`, "m").test(String(contents || ""));
   }
@@ -3063,7 +3075,10 @@ ${this.getRelatedTasksBlockMarkdown()}`;
   async insertRelatedTasksBlock(file) {
     if (!(file instanceof import_obsidian6.TFile) || !this.getReferenceFileKind(file)) return false;
     const contents = await this.app.vault.cachedRead(file);
-    if (this.hasRelatedTasksBlock(contents)) return true;
+    if (this.hasRelatedTasksBlock(contents)) {
+      new import_obsidian6.Notice("Related tasks block already exists.");
+      return true;
+    }
     await this.app.vault.modify(file, `${contents.trimEnd()}${this.getRelatedTasksBlockMarkdown()}`);
     new import_obsidian6.Notice("Related tasks block inserted.");
     return true;
