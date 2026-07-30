@@ -1303,6 +1303,14 @@
   min-width: 0;
 }
 
+.frontmatter-kanban-custom-field-editor .frontmatter-kanban-inline-toggle input,
+.frontmatter-kanban-custom-field-row .frontmatter-kanban-inline-toggle input {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
 .frontmatter-kanban-inline-toggle {
   display: inline-flex;
   align-items: center;
@@ -1310,6 +1318,7 @@
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   white-space: nowrap;
+  min-width: 0;
 }
 
 @media (max-width: 720px) {
