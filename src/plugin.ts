@@ -91,11 +91,12 @@ class ConfirmDeleteTaskModal extends Modal {
 }
 
 class RelatedTasksRenderChild extends MarkdownRenderChild {
-  constructor(containerEl, plugin, referenceFile, kind) {
+  constructor(containerEl, plugin, referenceFile, kind, showInsertButton = false) {
     super(containerEl);
     this.plugin = plugin;
     this.referenceFile = referenceFile;
     this.kind = kind;
+    this.showInsertButton = showInsertButton;
   }
 
   onload() {
@@ -110,6 +111,18 @@ class RelatedTasksRenderChild extends MarkdownRenderChild {
     const header = this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-header" });
     header.createDiv({ cls: "frontmatter-kanban-related-tasks-title", text: "Related tasks" });
     header.createDiv({ cls: "frontmatter-kanban-related-tasks-count", text: String(tasks.length) });
+    if (this.showInsertButton) {
+      new ButtonComponent(header)
+        .setButtonText("Insert")
+        .setTooltip("Insert this related tasks block into the note")
+        .onClick(async () => {
+          const inserted = await this.plugin.insertRelatedTasksBlock(this.referenceFile);
+          if (inserted) {
+            this.showInsertButton = false;
+            void this.render();
+          }
+        });
+    }
 
     if (!tasks.length) {
       this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-empty", text: "No related tasks" });
@@ -221,7 +234,6 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.ensureKanbanBaseFile();
     await this.ensureTimelineBaseFile();
     await this.migrateLegacyTaskTags();
-    await this.ensureReferencePagesRelatedTasksBlocks();
 
     this.app.workspace.onLayoutReady(() => {
       this.ensureBasesIntegration();
@@ -542,7 +554,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     }
 
     const container = el.createDiv({ cls: "frontmatter-kanban-related-tasks" });
-    ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind));
+    ctx.addChild(new RelatedTasksRenderChild(container, this, file, kind, true));
   }
 
   renderRelatedTasksBlock(el, ctx) {
@@ -576,15 +588,14 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     return "";
   }
 
-  async ensureReferencePagesRelatedTasksBlocks() {
-    const files = this.app.vault.getMarkdownFiles()
-      .filter((file) => this.getReferenceFileKind(file));
+  async insertRelatedTasksBlock(file) {
+    if (!(file instanceof TFile) || !this.getReferenceFileKind(file)) return false;
+    const contents = await this.app.vault.cachedRead(file);
+    if (this.hasRelatedTasksBlock(contents)) return true;
 
-    for (const file of files) {
-      const contents = await this.app.vault.cachedRead(file);
-      if (this.hasRelatedTasksBlock(contents)) continue;
-      await this.app.vault.modify(file, `${contents.trimEnd()}${this.getRelatedTasksBlockMarkdown()}`);
-    }
+    await this.app.vault.modify(file, `${contents.trimEnd()}${this.getRelatedTasksBlockMarkdown()}`);
+    new Notice("Related tasks block inserted.");
+    return true;
   }
 
   getTaskFolder() {

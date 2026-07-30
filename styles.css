@@ -971,6 +971,10 @@
   margin-bottom: 10px;
 }
 
+.frontmatter-kanban-related-tasks-header button {
+  margin-left: auto;
+}
+
 .frontmatter-kanban-related-tasks-title {
   color: var(--text-normal);
   font-size: var(--font-ui-medium);
