@@ -785,9 +785,9 @@ export class TimelineBasesView extends BasesView {
       this.renderMonthResizeHandle(item, task, "start");
     }
     item.createSpan({ cls: "frontmatter-timeline-month-task-dot" });
-    item.createSpan({ cls: "frontmatter-timeline-month-task-title", text: getTaskTitle(task) });
     const status = String(task.frontmatter.status || this.plugin.getDefaultStatus()).trim();
     if (status) item.createSpan({ cls: "frontmatter-timeline-month-task-status", text: status });
+    item.createSpan({ cls: "frontmatter-timeline-month-task-title", text: getTaskTitle(task) });
     const due = formatDateForInput(task.frontmatter.due);
     if (due) item.createSpan({ cls: "frontmatter-timeline-month-task-due", text: due.slice(5) });
     if (this.shouldUseTimelineResizeHandles()) {

@@ -2123,7 +2123,7 @@
 .frontmatter-timeline-month-task {
   min-width: 0;
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
+  grid-template-columns: 7px auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
   padding: 3px 5px;
@@ -2151,16 +2151,18 @@
 }
 
 .frontmatter-timeline-month-task-status {
-  max-width: 82px;
+  max-width: 64px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 999px;
   color: var(--fk-text-secondary);
   background: color-mix(in srgb, var(--kanban-column-accent) 18%, transparent);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
+  line-height: 1.2;
 }
 
 .frontmatter-timeline-month-more {
