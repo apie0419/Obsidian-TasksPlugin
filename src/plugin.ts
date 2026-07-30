@@ -26,7 +26,6 @@ import { getNotificationLeadMs, getPriorityWeight, getTaskTitle } from "./taskFi
 import { formatDateForInput, formatTimestampForFileName, getWorkOnText, nowIso, toDate } from "./utils/date";
 import { ensureFrontmatterTag, hasFrontmatterTag } from "./utils/tags";
 import { clone, normalizeFieldId, sanitizeFileName } from "./utils/text";
-import pluginStyles from "../styles.css";
 
 function markButtonDestructive(button) {
   if (typeof button.setDestructive === "function") {
@@ -154,7 +153,6 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.loadSettings();
 
     this.basesIntegrationRegistered = false;
-    this.installPluginStyles();
     this.ensureBasesIntegration();
 
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
@@ -164,12 +162,6 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.addCommand({
       id: "open-taskmanagement-kanban-board",
       name: "Open Kanban board",
-      hotkeys: [
-        {
-          modifiers: ["Mod", "Shift"],
-          key: "K"
-        }
-      ],
       callback: () => {
         void this.activateView();
       }
@@ -186,12 +178,6 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.addCommand({
       id: "create-frontmatter-kanban-task",
       name: "Create Kanban task",
-      hotkeys: [
-        {
-          modifiers: ["Mod", "Shift"],
-          key: "T"
-        }
-      ],
       callback: () => new CreateTaskModal(this.app, this).open()
     });
 
@@ -263,18 +249,6 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     this.settings.baseFilePath = DEFAULT_KANBAN_BASE_FILE;
     this.settings.projectFolder = PROJECT_FOLDER;
     delete this.settings.featureFolder;
-  }
-
-  installPluginStyles() {
-    const styleId = `${this.manifest.id}-injected-styles`;
-    document.getElementById(styleId)?.remove();
-
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.setAttribute("data-plugin", this.manifest.id);
-    style.textContent = pluginStyles;
-    document.head.appendChild(style);
-    this.register(() => style.remove());
   }
 
   async saveSettings() {
@@ -1146,20 +1120,11 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     if (!confirmed) return false;
 
     try {
-      if (this.app.fileManager && typeof this.app.fileManager.trashFile === "function") {
-        await this.app.fileManager.trashFile(file);
-      } else {
-        await this.app.vault.trash(file, true);
-      }
+      await this.app.fileManager.trashFile(file);
     } catch (error) {
       console.error("Failed to delete task", error);
-      try {
-        await this.app.vault.trash(file, true);
-      } catch (fallbackError) {
-        console.error("Failed to delete task with vault fallback", fallbackError);
-        new Notice("Task could not be deleted.");
-        return false;
-      }
+      new Notice("Task could not be deleted.");
+      return false;
     }
 
     new Notice("Task deleted.");

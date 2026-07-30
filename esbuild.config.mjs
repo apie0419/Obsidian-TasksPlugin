@@ -12,9 +12,6 @@ const options = {
   platform: "browser",
   target: "es2018",
   outfile: "main.js",
-  loader: {
-    ".css": "text"
-  },
   sourcemap: isProduction ? false : "inline",
   logLevel: "info"
 };

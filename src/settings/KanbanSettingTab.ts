@@ -12,17 +12,13 @@ export class KanbanSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  display() {
-    this.renderSettings(this.containerEl);
-  }
-
   refreshSettings() {
     if (typeof this.update === "function") {
       this.update();
       return;
     }
 
-    this.display();
+    this.renderSettings(this.containerEl);
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
