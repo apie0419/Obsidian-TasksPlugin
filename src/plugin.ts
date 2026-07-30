@@ -122,6 +122,11 @@ class RelatedTasksRenderChild extends MarkdownRenderChild {
             void this.render();
           }
         });
+    } else {
+      new ButtonComponent(header)
+        .setButtonText("Inserted")
+        .setTooltip("This note already contains the related tasks block")
+        .setDisabled(true);
     }
 
     if (!tasks.length) {
@@ -206,6 +211,19 @@ export default class FrontmatterKanbanPlugin extends Plugin {
         }
       ],
       callback: () => new CreateTaskModal(this.app, this).open()
+    });
+
+    this.addCommand({
+      id: "insert-taskmanagement-related-tasks-block",
+      name: "Insert related tasks block",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!(file instanceof TFile) || !this.getReferenceFileKind(file)) return false;
+        if (!checking) {
+          void this.insertRelatedTasksBlock(file);
+        }
+        return true;
+      }
     });
 
     this.addSettingTab(new KanbanSettingTab(this.app, this));

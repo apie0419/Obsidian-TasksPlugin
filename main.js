@@ -2633,6 +2633,8 @@ var RelatedTasksRenderChild = class extends import_obsidian6.MarkdownRenderChild
           void this.render();
         }
       });
+    } else {
+      new import_obsidian6.ButtonComponent(header).setButtonText("Inserted").setTooltip("This note already contains the related tasks block").setDisabled(true);
     }
     if (!tasks.length) {
       this.containerEl.createDiv({ cls: "frontmatter-kanban-related-tasks-empty", text: "No related tasks" });
@@ -2706,6 +2708,18 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
         }
       ],
       callback: () => new CreateTaskModal(this.app, this).open()
+    });
+    this.addCommand({
+      id: "insert-taskmanagement-related-tasks-block",
+      name: "Insert related tasks block",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!(file instanceof import_obsidian6.TFile) || !this.getReferenceFileKind(file)) return false;
+        if (!checking) {
+          void this.insertRelatedTasksBlock(file);
+        }
+        return true;
+      }
     });
     this.addSettingTab(new KanbanSettingTab(this.app, this));
     this.registerMarkdownCodeBlockProcessor(RELATED_TASKS_CODE_BLOCK, (source, el, ctx) => {
