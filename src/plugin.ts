@@ -153,6 +153,7 @@ export default class FrontmatterKanbanPlugin extends Plugin {
     await this.loadSettings();
 
     this.basesIntegrationRegistered = false;
+    this.basesIntegrationRetryTimer = null;
     this.ensureBasesIntegration();
 
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
@@ -280,27 +281,54 @@ export default class FrontmatterKanbanPlugin extends Plugin {
 
   async ensureBasesIntegrationBeforeOpen() {
     if (this.basesIntegrationRegistered) return;
-    this.ensureBasesIntegration(0, true);
-    await wait(100);
+    await this.waitForBasesIntegration({ notify: true });
   }
 
-  ensureBasesIntegration(retryCount = 0, notify = false) {
+  async waitForBasesIntegration({ attempts = 12, delayMs = 250, notify = false } = {}) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const shouldNotify = notify && attempt === attempts - 1;
+      if (this.registerBasesIntegration({ notify: shouldNotify })) {
+        this.scheduleRefreshViews(250);
+        return true;
+      }
+      await wait(delayMs);
+    }
+
+    return false;
+  }
+
+  ensureBasesIntegration({ retryCount = 0, maxRetries = 30, delayMs = 1000, notify = false } = {}) {
     if (this.basesIntegrationRegistered) return true;
     const registered = this.registerBasesIntegration({ notify });
     if (registered) {
+      this.clearBasesIntegrationRetryTimer();
       this.scheduleRefreshViews(250);
       return true;
     }
 
-    if (retryCount >= 5) {
+    if (retryCount >= maxRetries) {
       if (notify) this.registerBasesIntegration({ notify: true });
       return false;
     }
 
-    this.registerInterval(window.setTimeout(() => {
-      this.ensureBasesIntegration(retryCount + 1, notify);
-    }, 750));
+    this.clearBasesIntegrationRetryTimer();
+    this.basesIntegrationRetryTimer = window.setTimeout(() => {
+      this.basesIntegrationRetryTimer = null;
+      this.ensureBasesIntegration({
+        retryCount: retryCount + 1,
+        maxRetries,
+        delayMs,
+        notify
+      });
+    }, delayMs);
+    this.registerInterval(this.basesIntegrationRetryTimer);
     return false;
+  }
+
+  clearBasesIntegrationRetryTimer() {
+    if (!this.basesIntegrationRetryTimer) return;
+    window.clearTimeout(this.basesIntegrationRetryTimer);
+    this.basesIntegrationRetryTimer = null;
   }
 
   registerBasesIntegration({ notify = false } = {}) {
