@@ -2656,6 +2656,7 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     await this.loadSettings();
     this.basesIntegrationRegistered = false;
     this.basesIntegrationRetryTimer = null;
+    this.startupInitializationPromise = null;
     this.ensureBasesIntegration();
     this.addRibbonIcon("kanban", "Open Kanban Board", () => {
       void this.activateView();
@@ -2702,18 +2703,14 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
       this.app.vault.on("delete", () => this.refreshViews())
     );
     this.registerInterval(window.setInterval(() => {
-      void this.checkNotifications();
+      void this.checkNotificationsSafely();
     }, 60 * 1e3));
-    await this.ensureStorageFolders();
-    await this.ensureKanbanBaseFile();
-    await this.ensureTimelineBaseFile();
-    await this.migrateLegacyTaskTags();
     this.app.workspace.onLayoutReady(() => {
       this.ensureBasesIntegration();
+      void this.runStartupInitialization();
       this.scheduleRefreshViews(500);
     });
-    void this.syncDerivedFields();
-    void this.checkNotifications();
+    void this.checkNotificationsSafely();
   }
   async loadSettings() {
     const savedSettings = await this.loadData() || {};
@@ -2749,14 +2746,16 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     this.scheduleRefreshViews();
   }
   async activateView() {
-    const file = await this.ensureKanbanBaseFile();
+    const file = await this.prepareBaseFileForOpen("kanban");
+    if (!file) return;
     await this.ensureBasesIntegrationBeforeOpen();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
     await this.app.workspace.revealLeaf(leaf);
   }
   async activateTimelineView() {
-    const file = await this.ensureTimelineBaseFile();
+    const file = await this.prepareBaseFileForOpen("timeline");
+    if (!file) return;
     await this.ensureBasesIntegrationBeforeOpen();
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
@@ -2766,6 +2765,61 @@ var FrontmatterKanbanPlugin = class extends import_obsidian6.Plugin {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file, { active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+  async runStartupInitialization(options = {}) {
+    if (this.startupInitializationPromise) return this.startupInitializationPromise;
+    this.startupInitializationPromise = this.initializeStartupResources(options).finally(() => {
+      this.startupInitializationPromise = null;
+    });
+    return this.startupInitializationPromise;
+  }
+  async initializeStartupResources({ attempts = 8, delayMs = 750 } = {}) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        await this.ensureStorageFolders();
+        await this.ensureKanbanBaseFile();
+        await this.ensureTimelineBaseFile();
+        await this.migrateLegacyTaskTags();
+        void this.syncDerivedFieldsSafely();
+        void this.checkNotificationsSafely();
+        this.scheduleRefreshViews(500);
+        return true;
+      } catch (error) {
+        const isFinalAttempt = attempt === attempts - 1;
+        if (isFinalAttempt) {
+          console.error("TaskManagement startup initialization failed", error);
+          new import_obsidian6.Notice("TaskManagement could not finish startup setup. Check the console for details.");
+          return false;
+        }
+        console.warn("TaskManagement startup initialization will retry", error);
+        await wait(delayMs);
+      }
+    }
+    return false;
+  }
+  async prepareBaseFileForOpen(kind) {
+    await this.runStartupInitialization({ attempts: 4, delayMs: 250 });
+    try {
+      return kind === "timeline" ? await this.ensureTimelineBaseFile() : await this.ensureKanbanBaseFile();
+    } catch (error) {
+      console.error(`Failed to prepare ${kind} base file`, error);
+      new import_obsidian6.Notice(`TaskManagement could not open the ${kind} view. Check the console for details.`);
+      return null;
+    }
+  }
+  async syncDerivedFieldsSafely() {
+    try {
+      await this.syncDerivedFields();
+    } catch (error) {
+      console.error("Failed to sync derived task fields", error);
+    }
+  }
+  async checkNotificationsSafely() {
+    try {
+      await this.checkNotifications();
+    } catch (error) {
+      console.error("Failed to check task notifications", error);
+    }
   }
   async ensureBasesIntegrationBeforeOpen() {
     if (this.basesIntegrationRegistered) return;
