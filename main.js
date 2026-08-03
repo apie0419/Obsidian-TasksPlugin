@@ -1625,13 +1625,27 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
   getVisibleScheduledTasks(tasks, period) {
     return this.getScheduledTasks(tasks).filter((item) => item.range.start <= period.end && item.range.end >= period.start);
   }
+  getPackedTimelineLanes(candidates) {
+    const laneEnds = [];
+    const placements = [...candidates].sort((left, right) => left.columns.start - right.columns.start || left.columns.end - right.columns.end || left.index - right.index).map((candidate) => {
+      let lane = laneEnds.findIndex((end) => end <= candidate.columns.start);
+      if (lane === -1) lane = laneEnds.length;
+      laneEnds[lane] = candidate.columns.end;
+      return Object.assign({}, candidate, { lane });
+    });
+    return { placements, laneCount: laneEnds.length };
+  }
   getTasksForDate(tasks, date) {
     return this.getScheduledTasks(tasks).filter((item) => item.range.start <= date && item.range.end >= date).map((item) => item.task);
   }
   renderWeekTimeline(shell, tasks, period) {
     const visibleDays = this.getVisibleDays(period.days);
     const scheduled = this.getVisibleScheduledTasks(tasks, period).filter((item) => visibleDays.some((date) => item.range.start <= date && item.range.end >= date));
-    const rowCount = Math.max(scheduled.length, 4);
+    const packed = this.getPackedTimelineLanes(scheduled.map((item, index) => {
+      const columns = this.getGridColumnsForRange(item.range, visibleDays);
+      return columns ? { item, index, columns } : null;
+    }).filter(Boolean));
+    const rowCount = Math.max(packed.laneCount, 4);
     const dayWidth = this.getDayWidth();
     const laneHeight = this.getLaneHeight();
     const panel = shell.createDiv({ cls: "frontmatter-timeline-main" });
@@ -1694,14 +1708,12 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
         gridRow: "2 / -1"
       });
     });
-    scheduled.forEach((item, index) => {
-      const columns = this.getGridColumnsForRange(item.range, visibleDays);
-      if (!columns) return;
+    packed.placements.forEach(({ item, columns, lane }) => {
       const holder = grid.createDiv({ cls: "frontmatter-timeline-task" });
       holder.setCssProps({ "--kanban-column-accent": getPriorityAccent(item.task) });
       holder.setCssStyles({
         gridColumn: `${columns.start} / ${columns.end}`,
-        gridRow: String(index + 2)
+        gridRow: String(lane + 2)
       });
       this.renderTimelineCard(holder, item.task, "frontmatter-timeline-grid-card");
       if (this.shouldUseTimelineResizeHandles()) {
@@ -1847,8 +1859,11 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       });
     });
     const weeks = this.getMonthWeeks(period.start, hideWeekends);
+    const monthPlacement = this.getMonthTaskPlacements(tasks, weeks);
+    const monthRowMin = isMobileLayout ? Math.max(58, 24 + Math.max(monthPlacement.laneCount, 1) * 17) : Math.max(132, 34 + Math.max(monthPlacement.laneCount, 1) * 24);
+    calendar.setCssProps({ "--timeline-month-row-min": `${monthRowMin}px` });
     calendar.setCssStyles({
-      gridTemplateRows: isMobileLayout ? `28px repeat(${weeks.length}, minmax(58px, 1fr))` : `34px repeat(${weeks.length}, minmax(132px, 1fr))`
+      gridTemplateRows: isMobileLayout ? `28px repeat(${weeks.length}, minmax(var(--timeline-month-row-min), auto))` : `34px repeat(${weeks.length}, minmax(var(--timeline-month-row-min), 1fr))`
     });
     this.registerDomEvent(calendar, "dragover", (event) => {
       const date = this.getMonthDateFromPoint(event.clientX, event.clientY);
@@ -1914,25 +1929,40 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
         cell.createDiv({ cls: "frontmatter-timeline-month-date", text: String(date.getDate()) });
       });
     });
-    this.renderMonthTaskBars(calendar, tasks, weeks);
+    this.renderMonthTaskBars(calendar, monthPlacement.placements);
   }
-  renderMonthTaskBars(calendar, tasks, weeks) {
+  getMonthTaskPlacements(tasks, weeks) {
     const scheduled = this.getScheduledTasks(tasks);
-    const lanesByWeek = /* @__PURE__ */ new Map();
-    scheduled.forEach((item) => {
-      weeks.forEach((week, weekIndex) => {
+    const placements = [];
+    let laneCount = 0;
+    weeks.forEach((week, weekIndex) => {
+      const candidates = scheduled.map((item, index) => {
         const segment = this.getMonthSegment(item.range, week);
-        if (!segment) return;
-        const lane = lanesByWeek.get(weekIndex) || 0;
-        lanesByWeek.set(weekIndex, lane + 1);
-        this.renderMonthTask(calendar, item.task, {
+        return segment ? {
+          item,
+          index,
+          columns: {
+            start: segment.start + 1,
+            end: segment.end + 2
+          }
+        } : null;
+      }).filter(Boolean);
+      const packed = this.getPackedTimelineLanes(candidates);
+      laneCount = Math.max(laneCount, packed.laneCount);
+      packed.placements.forEach(({ item, columns, lane }) => {
+        placements.push({
+          task: item.task,
           weekIndex,
           lane,
-          colStart: segment.start + 1,
-          colEnd: segment.end + 2
+          colStart: columns.start,
+          colEnd: columns.end
         });
       });
     });
+    return { placements, laneCount };
+  }
+  renderMonthTaskBars(calendar, placements) {
+    placements.forEach((placement) => this.renderMonthTask(calendar, placement.task, placement));
   }
   getMonthSegment(range, week) {
     let start = -1;
