@@ -197,11 +197,12 @@ export class TimelineBasesView extends BasesView {
 
     const tasks = this.getTasks();
     const period = this.getPeriod();
+    const isMobileLayout = this.isMobileLayout();
 
     this.renderToolbar(period);
 
     const shell = this.containerEl.createDiv({
-      cls: `frontmatter-timeline-shell ${this.isSidebarCollapsed ? "is-sidebar-collapsed" : ""}`
+      cls: `frontmatter-timeline-shell ${!isMobileLayout && this.isSidebarCollapsed ? "is-sidebar-collapsed" : ""}`
     });
     if (this.periodMode === "month") {
       this.renderMonthCalendar(shell, tasks, period);
@@ -210,7 +211,7 @@ export class TimelineBasesView extends BasesView {
     } else {
       this.renderWeekTimeline(shell, tasks, period);
     }
-    this.renderSidebar(shell, tasks);
+    if (!isMobileLayout) this.renderSidebar(shell, tasks);
   }
 
   getDayWidth() {

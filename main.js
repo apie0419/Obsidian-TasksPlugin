@@ -1482,9 +1482,10 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     this.containerEl.addClass("frontmatter-timeline");
     const tasks = this.getTasks();
     const period = this.getPeriod();
+    const isMobileLayout = this.isMobileLayout();
     this.renderToolbar(period);
     const shell = this.containerEl.createDiv({
-      cls: `frontmatter-timeline-shell ${this.isSidebarCollapsed ? "is-sidebar-collapsed" : ""}`
+      cls: `frontmatter-timeline-shell ${!isMobileLayout && this.isSidebarCollapsed ? "is-sidebar-collapsed" : ""}`
     });
     if (this.periodMode === "month") {
       this.renderMonthCalendar(shell, tasks, period);
@@ -1493,7 +1494,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     } else {
       this.renderWeekTimeline(shell, tasks, period);
     }
-    this.renderSidebar(shell, tasks);
+    if (!isMobileLayout) this.renderSidebar(shell, tasks);
   }
   getDayWidth() {
     const configured = this.config && typeof this.config.get === "function" ? Number(this.config.get("dayWidth")) : 150;
