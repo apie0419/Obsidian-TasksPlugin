@@ -1367,6 +1367,9 @@ function daysBetween(start, end) {
   const right = new Date(end.getFullYear(), end.getMonth(), end.getDate());
   return Math.round((right.getTime() - left.getTime()) / DAY_MS);
 }
+function countRangeOverlapDays(range, days) {
+  return days.reduce((total, date) => total + (range.start <= date && range.end >= date ? 1 : 0), 0);
+}
 function startOfWeek(date) {
   const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
@@ -1627,14 +1630,17 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     return this.getScheduledTasks(tasks).filter((item) => item.range.start <= period.end && item.range.end >= period.start);
   }
   getPackedTimelineLanes(candidates) {
-    const laneEnds = [];
-    const placements = [...candidates].sort((left, right) => left.columns.start - right.columns.start || left.columns.end - right.columns.end || left.index - right.index).map((candidate) => {
-      let lane = laneEnds.findIndex((end) => end <= candidate.columns.start);
-      if (lane === -1) lane = laneEnds.length;
-      laneEnds[lane] = candidate.columns.end;
+    const laneSegments = [];
+    const placements = [...candidates].sort((left, right) => (right.sortWeight || 0) - (left.sortWeight || 0) || left.columns.start - right.columns.start || (right.sortSpan || right.columns.end - right.columns.start) - (left.sortSpan || left.columns.end - left.columns.start) || right.columns.end - left.columns.end || left.index - right.index).map((candidate) => {
+      let lane = laneSegments.findIndex((segments) => segments.every((segment) => candidate.columns.end <= segment.start || candidate.columns.start >= segment.end));
+      if (lane === -1) {
+        lane = laneSegments.length;
+        laneSegments.push([]);
+      }
+      laneSegments[lane].push(candidate.columns);
       return Object.assign({}, candidate, { lane });
     });
-    return { placements, laneCount: laneEnds.length };
+    return { placements, laneCount: laneSegments.length };
   }
   getTasksForDate(tasks, date) {
     return this.getScheduledTasks(tasks).filter((item) => item.range.start <= date && item.range.end >= date).map((item) => item.task);
@@ -1644,7 +1650,13 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     const scheduled = this.getVisibleScheduledTasks(tasks, period).filter((item) => visibleDays.some((date) => item.range.start <= date && item.range.end >= date));
     const packed = this.getPackedTimelineLanes(scheduled.map((item, index) => {
       const columns = this.getGridColumnsForRange(item.range, visibleDays);
-      return columns ? { item, index, columns } : null;
+      return columns ? {
+        item,
+        index,
+        columns,
+        sortWeight: countRangeOverlapDays(item.range, visibleDays),
+        sortSpan: columns.end - columns.start
+      } : null;
     }).filter(Boolean));
     const rowCount = Math.max(packed.laneCount, 4);
     const dayWidth = this.getDayWidth();
@@ -1860,7 +1872,7 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
       });
     });
     const weeks = this.getMonthWeeks(period.start, hideWeekends);
-    const monthPlacement = this.getMonthTaskPlacements(tasks, weeks);
+    const monthPlacement = this.getMonthTaskPlacements(tasks, weeks, period);
     const monthRowMin = isMobileLayout ? Math.max(58, 24 + Math.max(monthPlacement.laneCount, 1) * 17) : Math.max(132, 34 + Math.max(monthPlacement.laneCount, 1) * 24);
     calendar.setCssProps({ "--timeline-month-row-min": `${monthRowMin}px` });
     calendar.setCssStyles({
@@ -1932,8 +1944,9 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
     });
     this.renderMonthTaskBars(calendar, monthPlacement.placements);
   }
-  getMonthTaskPlacements(tasks, weeks) {
+  getMonthTaskPlacements(tasks, weeks, period) {
     const scheduled = this.getScheduledTasks(tasks);
+    const monthDays = this.getVisibleDays(period.days);
     const placements = [];
     let laneCount = 0;
     weeks.forEach((week, weekIndex) => {
@@ -1942,6 +1955,8 @@ var TimelineBasesView = class extends import_obsidian4.BasesView {
         return segment ? {
           item,
           index,
+          sortWeight: countRangeOverlapDays(item.range, monthDays),
+          sortSpan: segment.end - segment.start + 1,
           columns: {
             start: segment.start + 1,
             end: segment.end + 2
