@@ -1787,7 +1787,10 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 14px 12px 16px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .frontmatter-timeline-sidebar-section {
@@ -2729,6 +2732,22 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.20);
 }
 
+.frontmatter-timeline-sidebar-section {
+  contain: layout paint style;
+}
+
+.frontmatter-timeline-sidebar-card.frontmatter-kanban-card {
+  contain: layout paint;
+  content-visibility: auto;
+  contain-intrinsic-size: 132px;
+  transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
+}
+
+.frontmatter-timeline-sidebar-card.frontmatter-kanban-card:hover {
+  transform: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
 .frontmatter-timeline-sidebar-card .frontmatter-kanban-card-title {
   font-size: 1.25em;
   line-height: 1.18;
@@ -2793,6 +2812,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   box-shadow: none;
+  contain-intrinsic-size: 70px;
 }
 
 .frontmatter-timeline-sidebar-card.is-compact .frontmatter-kanban-card-title-wrap {
